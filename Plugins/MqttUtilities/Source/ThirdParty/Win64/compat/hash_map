@@ -1,0 +1,24 @@
+// Compatibility shim: <hash_map> was removed from MSVC in VS 2022 17.6+.
+// Redirect to the standard equivalent so legacy headers still compile.
+#pragma once
+#include <unordered_map>
+#include <functional>
+namespace stdext {
+    template<
+        class Key,
+        class T,
+        class HashFcn  = std::hash<Key>,
+        class EqualKey = std::equal_to<Key>,
+        class Alloc    = std::allocator<std::pair<const Key, T>>
+    >
+    using hash_map = std::unordered_map<Key, T, HashFcn, EqualKey, Alloc>;
+
+    template<
+        class Key,
+        class T,
+        class HashFcn  = std::hash<Key>,
+        class EqualKey = std::equal_to<Key>,
+        class Alloc    = std::allocator<std::pair<const Key, T>>
+    >
+    using hash_multimap = std::unordered_multimap<Key, T, HashFcn, EqualKey, Alloc>;
+}

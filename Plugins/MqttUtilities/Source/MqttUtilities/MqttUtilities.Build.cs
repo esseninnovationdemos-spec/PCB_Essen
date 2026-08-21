@@ -64,6 +64,10 @@ public class MqttUtilities : ModuleRules
         {
             PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Private/Windows"));
 
+            // VS 2022 17.6+ removed <hash_map>; provide a compatibility shim so
+            // legacy mosquitto/third-party headers that still include it still compile.
+            PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "../ThirdParty/Win64/compat"));
+
             LoadThirdPartyLibrary("mosquitto", Target);
             LoadThirdPartyLibrary("mosquittopp", Target);
         }
