@@ -1,0 +1,59 @@
+# Normalize line endings for text files so they stop churning under core.autocrlf.
+# Without this file, 32 LF-committed plugin sources show as permanently modified
+# with an empty `git diff --numstat`.
+* text=auto
+
+# Source and config: keep LF in the repo.
+*.cpp    text eol=lf
+*.h      text eol=lf
+*.cs     text eol=lf
+*.c      text eol=lf
+*.inl    text eol=lf
+*.py     text eol=lf
+*.ini    text eol=lf
+*.json   text eol=lf
+*.toml   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.md     text eol=lf
+*.uplugin  text eol=lf
+*.uproject text eol=lf
+
+# Windows-only scripts want CRLF.
+*.bat    text eol=crlf
+*.cmd    text eol=crlf
+*.ps1    text eol=crlf
+
+# Unreal assets are binary. This is the important part: never let git apply
+# line-ending or merge transforms to these, it silently corrupts them.
+*.uasset binary
+*.umap   binary
+*.upk    binary
+*.udk    binary
+
+# Binary third-party and build artifacts.
+*.dll    binary
+*.lib    binary
+*.exp    binary
+*.pdb    binary
+*.ilk    binary
+*.so     binary
+*.a      binary
+*.dylib  binary
+*.zip    binary
+*.7z     binary
+
+# Media.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.tga    binary
+*.bmp    binary
+*.ico    binary
+*.wav    binary
+*.mp3    binary
+*.ogg    binary
+*.fbx    binary
+*.ttf    binary
+*.otf    binary

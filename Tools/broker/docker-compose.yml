@@ -1,0 +1,26 @@
+# Local MQTT broker for FactoryTwin development.
+#
+#   cd Tools/broker
+#   docker compose up -d      # start
+#   docker compose logs -f    # watch CONNECT / PUBLISH / will delivery
+#   docker compose down       # stop
+#
+# Point the project at localhost:1883 while the production broker
+# (192.168.100.102:31883) is unavailable. Host/port come from settings, so
+# switching over later is a config change only.
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: factorytwin-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:
