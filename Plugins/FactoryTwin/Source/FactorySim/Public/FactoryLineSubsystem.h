@@ -121,6 +121,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Factory Twin")
 	USparkplugEdgeNode* GetEdgeNode() const { return EdgeNode; }
 
+	/**
+	 * The registered machine publishing under this Sparkplug device id.
+	 *
+	 * Device id is the identifier the rest of the system already uses, so
+	 * anything driving machines by name -- a production line, an inbound command
+	 * -- can find one without holding a hard reference to the actor.
+	 *
+	 * @return The machine, or null if nothing is registered under that id.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin")
+	UFactoryMachineComponent* FindMachine(const FString& DeviceId) const;
+
 	/** Called by machine components on BeginPlay. */
 	void RegisterMachine(UFactoryMachineComponent* Machine);
 	void UnregisterMachine(UFactoryMachineComponent* Machine);

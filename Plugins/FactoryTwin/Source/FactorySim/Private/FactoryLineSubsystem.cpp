@@ -188,7 +188,7 @@ bool UFactoryLineSubsystem::StartLineWithBroker(
 	return EdgeNode != nullptr;
 }
 
-bool UFactoryLineSubsystem::PublishDeviceEvent(const FString& DeviceId, const FString& EventType)
+UFactoryMachineComponent* UFactoryLineSubsystem::FindMachine(const FString& DeviceId) const
 {
 	for (const TObjectPtr<UFactoryMachineComponent>& Machine : Machines)
 	{
@@ -196,9 +196,18 @@ bool UFactoryLineSubsystem::PublishDeviceEvent(const FString& DeviceId, const FS
 			&& Machine->Instance != nullptr
 			&& Machine->Instance->DeviceId == DeviceId)
 		{
-			Machine->PublishEvent(EventType);
-			return true;
+			return Machine;
 		}
+	}
+	return nullptr;
+}
+
+bool UFactoryLineSubsystem::PublishDeviceEvent(const FString& DeviceId, const FString& EventType)
+{
+	if (UFactoryMachineComponent* Machine = FindMachine(DeviceId))
+	{
+		Machine->PublishEvent(EventType);
+		return true;
 	}
 
 	UE_LOG(LogFactorySim, Warning,

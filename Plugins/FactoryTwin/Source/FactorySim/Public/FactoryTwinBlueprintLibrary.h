@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FactoryLayoutGrid.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 
 #include "FactoryTwinBlueprintLibrary.generated.h"
@@ -123,4 +124,34 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Factory Twin",
 		meta = (WorldContext = "WorldContextObject", DisplayName = "Start New Factory Lot"))
 	static FString StartNewFactoryLot(const UObject* WorldContextObject);
+
+	/**
+	 * Snaps a floor-plan position to the configured grid.
+	 *
+	 * The single entry point for placement maths, so a machine positioned from a
+	 * Blueprint, a commandlet or an MCP call all land on the same intersections.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Layout",
+		meta = (DisplayName = "Snap To Factory Grid"))
+	static FVector2D SnapToFactoryGrid(FVector2D PositionMetres);
+
+	/** Grid cell containing a floor-plan position. */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Layout",
+		meta = (DisplayName = "Factory Grid Cell At"))
+	static FFactoryGridCoord FactoryGridCellAt(FVector2D PositionMetres);
+
+	/** Centre of a grid cell, in floor-plan metres. */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Layout",
+		meta = (DisplayName = "Factory Grid Cell To Metres"))
+	static FVector2D FactoryGridCellToMetres(FFactoryGridCoord Cell);
+
+	/** A floor-plan position as an Unreal world location. */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Layout",
+		meta = (DisplayName = "Factory Layout To World"))
+	static FVector FactoryLayoutToWorld(FVector2D PositionMetres, float HeightCm = 0.0f);
+
+	/** Configured grid pitch, in metres. */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Layout",
+		meta = (DisplayName = "Get Factory Grid Pitch"))
+	static float GetFactoryGridPitchMetres();
 };

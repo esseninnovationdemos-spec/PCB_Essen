@@ -409,12 +409,20 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 		// Housing fit is an operator task on this line.
 		I->Archetype = LoadObject<UFactoryMachineArchetype>(
 			nullptr, TEXT("/Game/FactoryTwin/Archetypes/A_ManualStation.A_ManualStation"));
+
+		// The shared manual archetype is timed for the SMT line, where a manual
+		// step is a rework bench at 25-90 s. Here the same archetype is the first
+		// station on a flowing line, so that range throttles everything behind it
+		// -- the line ran at one unit a minute and stood empty. An operator
+		// fitting a housing into a carrier is a 10-second job, and overriding the
+		// band rather than the dwell keeps the reported cycle time honest.
+		I->NominalOverrides.Add(TEXT("cycle_time_sec"), FFactoryRange(8.0, 14.0));
 		NextAlias = PinAliases(I, NextAlias, { TEXT("cycle_time_sec") });
 		Created.Add(I);
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_PinInsertion"), PressType,
-		TEXT("PIN_INSERTION"), TEXT("PinInsertion"), { 3.0, 0.0 }, { 1.6, 1.4 }))
+		TEXT("PIN_INSERTION"), TEXT("PinInsertion"), { 2.5, 0.0 }, { 1.6, 1.4 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("insertion_force_n"), TEXT("insertion_depth_mm"), TEXT("cycle_time_sec") });
@@ -431,7 +439,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_InCircuitTest"), IctType,
-		TEXT("ICT"), TEXT("ICT"), { 7.0, 0.0 }, { 1.8, 1.4 }))
+		TEXT("ICT"), TEXT("ICT"), { 7.5, 0.0 }, { 1.8, 1.4 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("test_voltage_v"), TEXT("test_current_ma"), TEXT("insulation_mohm"),
@@ -440,7 +448,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_FlashProgramming"), FlashType,
-		TEXT("FLASH_PROGRAMMING"), TEXT("FlashProgramming"), { 9.5, 0.0 }, { 1.4, 1.2 }))
+		TEXT("FLASH_PROGRAMMING"), TEXT("FlashProgramming"), { 10.0, 0.0 }, { 1.4, 1.2 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("flash_throughput_kbs"), TEXT("flash_bytes"), TEXT("cycle_time_sec") });
@@ -448,14 +456,14 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_AssemblyBuffer"), BufferType,
-		TEXT("ASSEMBLY_BUFFER"), TEXT("Buffer"), { 11.5, 0.0 }, { 2.4, 0.8 }))
+		TEXT("ASSEMBLY_BUFFER"), TEXT("Buffer"), { 12.5, 0.0 }, { 2.4, 0.8 }))
 	{
 		NextAlias = PinAliases(I, NextAlias, { TEXT("occupancy"), TEXT("fill_pct") });
 		Created.Add(I);
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_EndOfLineTest"), EolType,
-		TEXT("EOL_TEST"), TEXT("EndOfLineTest"), { 14.0, 0.0 }, { 1.8, 1.4 }))
+		TEXT("EOL_TEST"), TEXT("EndOfLineTest"), { 17.5, 0.0 }, { 1.8, 1.4 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("supply_current_ma"), TEXT("boot_time_ms"), TEXT("cycle_time_sec") });
@@ -463,7 +471,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_Packaging"), PackType,
-		TEXT("PACKAGING"), TEXT("Packaging"), { 16.5, 0.0 }, { 2.2, 1.6 }))
+		TEXT("PACKAGING"), TEXT("Packaging"), { 20.0, 0.0 }, { 2.2, 1.6 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("units_in_carton"), TEXT("seal_temp_c"), TEXT("cycle_time_sec") });
@@ -474,7 +482,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	// Same RoboticArm archetype as the UR5 handler, which is the point: one
 	// archetype, two physically different robots.
 	if (UFactoryMachineInstance* I = Make(TEXT("I_KukaHandler"), RobotType,
-		TEXT("KUKA_HANDLER"), TEXT("KukaHandler"), { 12.0, 2.0 }, { 1.1, 1.1 }))
+		TEXT("KUKA_HANDLER"), TEXT("KukaHandler"), { 15.0, 2.0 }, { 1.1, 1.1 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("tcp_speed_mms"), TEXT("joint_load_pct"), TEXT("payload_kg"),

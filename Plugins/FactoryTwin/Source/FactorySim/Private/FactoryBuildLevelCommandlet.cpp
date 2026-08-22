@@ -11,7 +11,10 @@
 #include "FileHelpers.h"
 #include "FactoryCycleDriverComponent.h"
 #include "FactoryMachineComponent.h"
+#include "FactoryLayoutGrid.h"
 #include "FactoryMachineInstance.h"
+#include "FactoryProductionLine.h"
+#include "FactoryShapeMaterials.h"
 #include "FactoryRobotArm.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/ARFilter.h"
@@ -45,6 +48,50 @@ namespace LevelBuild
 		{ TEXT("/Game/FactoryTwin/Instances/I_Packaging.I_Packaging"),
 		  TEXT("/Game/FinalAssembly-Workcenter/Packaging/Packaging_BP.Packaging_BP_C") },
 	};
+
+	/**
+	 * The belt: where a unit stops, and which machine works on it there.
+	 *
+	 * Every stop sits on the belt centreline. The two robots are placed off to
+	 * the side and serve the stop beside them rather than having the unit detour
+	 * to reach them, which is both how the cell is really laid out and what
+	 * keeps the belt a straight line.
+	 *
+	 * Positions are 2.5 m apart, an exact multiple of the half-metre grid.
+	 */
+	struct FLineStopSpec
+	{
+		const TCHAR* DeviceId;
+		double XMetres;
+		EFactoryProductStage StageOnComplete;
+	};
+
+	const FLineStopSpec LineStops[] = {
+		{ TEXT("HOUSING_ASSEMBLY"),   0.0, EFactoryProductStage::HousingFitted },
+		{ TEXT("PIN_INSERTION"),      2.5, EFactoryProductStage::PinsInserted },
+		{ TEXT("ASSEMBLY_ROBOT"),     5.0, EFactoryProductStage::BoardFitted },
+		{ TEXT("ICT"),                7.5, EFactoryProductStage::Tested },
+		{ TEXT("FLASH_PROGRAMMING"), 10.0, EFactoryProductStage::Programmed },
+		// No machine placed for the buffer, so this is a plain holding position
+		// on the belt -- which is what a buffer is.
+		{ TEXT("ASSEMBLY_BUFFER"),   12.5, EFactoryProductStage::Programmed },
+		{ TEXT("KUKA_HANDLER"),      15.0, EFactoryProductStage::LidFitted },
+		{ TEXT("EOL_TEST"),          17.5, EFactoryProductStage::FunctionTested },
+		{ TEXT("PACKAGING"),         20.0, EFactoryProductStage::Packed },
+	};
+
+	/** True when the production line, rather than a timer, drives this machine. */
+	bool IsDrivenByLine(const FString& DeviceId)
+	{
+		for (const FLineStopSpec& Stop : LineStops)
+		{
+			if (DeviceId == Stop.DeviceId)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
 
 	/** Layout poses are authored in metres; Unreal works in centimetres. */
 	constexpr double MetresToCm = 100.0;
@@ -142,6 +189,11 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 
 	UE_LOG(LogFactorySim, Display, TEXT("Building %s from instance assets..."), *LevelPath);
 
+	// Must happen before anything is spawned: the generated geometry references
+	// these, and a level referencing a material that does not exist yet saves
+	// with the reference dropped.
+	FactoryShapeMaterials::EnsureAll();
+
 	UWorld* World = UEditorLoadingAndSavingUtils::NewBlankMap(/*bSaveExistingMap*/ false);
 	if (World == nullptr)
 	{
@@ -176,12 +228,11 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		}
 
 		// Drive the pose from the instance so the level and the tag map describe
-		// the same line.
+		// the same line, and snap it, so a hand-edited layout position still
+		// lands where the floor grid says it should.
 		FTransform Transform;
-		Transform.SetLocation(FVector(
-			Instance->LayoutPosition.X * MetresToCm,
-			Instance->LayoutPosition.Y * MetresToCm,
-			0.0));
+		Transform.SetLocation(FactoryGrid::MetresToWorld(
+			FactoryGrid::SnapMetres(Instance->LayoutPosition)));
 		Transform.SetRotation(FRotator(0.0, Instance->LayoutRotationDegrees, 0.0).Quaternion());
 
 		FActorSpawnParameters SpawnParams;
@@ -200,12 +251,17 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 
 		Station->SetActorLabel(Instance->DeviceId);
 
-		// These stations have no authored animation driving their cycle, so give
-		// each one a driver. Remove it per-station once real motion exists.
-		UFactoryCycleDriverComponent* Driver = NewObject<UFactoryCycleDriverComponent>(
-			Station, UFactoryCycleDriverComponent::StaticClass(), TEXT("CycleDriver"));
-		Driver->RegisterComponent();
-		Station->AddInstanceComponent(Driver);
+		// Stations the production line serves are driven by the units arriving at
+		// them, so they must not also run on a timer -- two things calling
+		// StartCycle on one machine interleave into nonsense. Anything the line
+		// does not reach still needs a driver to do more than sit Idle.
+		if (!IsDrivenByLine(Instance->DeviceId))
+		{
+			UFactoryCycleDriverComponent* Driver = NewObject<UFactoryCycleDriverComponent>(
+				Station, UFactoryCycleDriverComponent::StaticClass(), TEXT("CycleDriver"));
+			Driver->RegisterComponent();
+			Station->AddInstanceComponent(Driver);
+		}
 
 		// The UR5 drives its arm from a separate Goal actor holding the waypoint
 		// path, and the two hold references to each other. Placing the robot
@@ -309,10 +365,8 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 			KukaMachine->RegisterComponent();
 			Kuka->AddInstanceComponent(KukaMachine);
 
-			UFactoryCycleDriverComponent* KukaDriver = NewObject<UFactoryCycleDriverComponent>(
-				Kuka, UFactoryCycleDriverComponent::StaticClass(), TEXT("CycleDriver"));
-			KukaDriver->RegisterComponent();
-			Kuka->AddInstanceComponent(KukaDriver);
+			// No cycle driver: the production line drives this one, same as the
+			// belt stations.
 
 			++Placed;
 			int32 MeshCount = Kuka->BaseMeshes.Num();
@@ -397,6 +451,43 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 			Floor->SetActorScale3D(FVector(40.0, 20.0, 1.0));
 			Floor->SetActorLabel(TEXT("Floor"));
 		}
+	}
+
+	// The floor-plan grid, so a placement can be read straight off the level
+	// instead of by opening the instance asset and reading a decimal.
+	if (AFactoryFloorGrid* Grid = World->SpawnActor<AFactoryFloorGrid>(
+		FVector::ZeroVector, FRotator::ZeroRotator))
+	{
+		Grid->SetActorLabel(TEXT("FloorGrid"));
+		Grid->MinMetres = FVector2D(-4.0, -6.0);
+		Grid->MaxMetres = FVector2D(24.0, 6.0);
+		Grid->RebuildGrid();
+	}
+
+	// The belt, and the units that travel it. This is what makes the line
+	// produce something rather than just report that it is busy.
+	if (AFactoryProductionLine* Line = World->SpawnActor<AFactoryProductionLine>(
+		FVector::ZeroVector, FRotator::ZeroRotator))
+	{
+		Line->SetActorLabel(TEXT("AssemblyLine"));
+		Line->EntryMetres = FVector2D(-3.0, 0.0);
+		Line->ExitMetres = FVector2D(23.0, 0.0);
+		Line->TaktSeconds = 12.0f;
+
+		for (const FLineStopSpec& Spec : LineStops)
+		{
+			FFactoryLineStop Stop;
+			Stop.DeviceId = Spec.DeviceId;
+			Stop.PositionMetres = FVector2D(Spec.XMetres, 0.0);
+			Stop.StageOnComplete = Spec.StageOnComplete;
+			Line->Stops.Add(Stop);
+		}
+		Line->RebuildBelt();
+
+		UE_LOG(LogFactorySim, Display,
+			TEXT("  assembly line: %d stop(s), %.1fs takt, %.1f m of belt"),
+			Line->Stops.Num(), Line->TaktSeconds,
+			Line->ExitMetres.X - Line->EntryMetres.X);
 	}
 
 	if (!UEditorLoadingAndSavingUtils::SaveMap(World, LevelPath))

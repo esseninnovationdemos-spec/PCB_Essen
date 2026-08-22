@@ -128,3 +128,29 @@ FString UFactoryTwinBlueprintLibrary::StartNewFactoryLot(const UObject* WorldCon
 	UFactoryLineSubsystem* Line = GetFactoryLine(WorldContextObject);
 	return Line != nullptr ? Line->StartNewLot() : FString();
 }
+
+FVector2D UFactoryTwinBlueprintLibrary::SnapToFactoryGrid(const FVector2D PositionMetres)
+{
+	return FactoryGrid::SnapMetres(PositionMetres);
+}
+
+FFactoryGridCoord UFactoryTwinBlueprintLibrary::FactoryGridCellAt(const FVector2D PositionMetres)
+{
+	return FactoryGrid::MetresToCell(PositionMetres);
+}
+
+FVector2D UFactoryTwinBlueprintLibrary::FactoryGridCellToMetres(const FFactoryGridCoord Cell)
+{
+	return FactoryGrid::CellToMetres(Cell);
+}
+
+FVector UFactoryTwinBlueprintLibrary::FactoryLayoutToWorld(
+	const FVector2D PositionMetres, const float HeightCm)
+{
+	return FactoryGrid::MetresToWorld(PositionMetres, HeightCm);
+}
+
+float UFactoryTwinBlueprintLibrary::GetFactoryGridPitchMetres()
+{
+	return FactoryGrid::GetPitchMetres();
+}

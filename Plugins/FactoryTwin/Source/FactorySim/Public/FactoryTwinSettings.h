@@ -52,6 +52,19 @@ public:
 	float AutoProductionIntervalSeconds = 30.0f;
 
 	/**
+	 * Floor-plan grid pitch, in metres.
+	 *
+	 * Layout is authored in metres because that is how a factory is drawn, but
+	 * placements should land on a regular pitch rather than wherever a number
+	 * happened to fall -- machines that share a cell edge line up, and a layout
+	 * can be described as cells instead of decimals. Everything that places a
+	 * machine snaps through this.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Layout",
+		meta = (ClampMin = "0.05", Units = "m"))
+	float GridPitchMetres = 0.5f;
+
+	/**
 	 * Identity and broker settings.
 	 *
 	 * Group and node id are wire-visible; the downstream ClickHouse bridge and
