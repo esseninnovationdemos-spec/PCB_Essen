@@ -61,6 +61,56 @@ bool UFactoryTwinBlueprintLibrary::PublishUnsString(
 		Topic, Payload, EMqttQoS::AtMostOnce, false);
 }
 
+void UFactoryTwinBlueprintLibrary::RequestNewMaterial(const UObject* WorldContextObject)
+{
+	if (UFactoryLineSubsystem* Line = GetFactoryLine(WorldContextObject))
+	{
+		Line->RequestNewMaterial();
+	}
+}
+
+void UFactoryTwinBlueprintLibrary::StartAutoProduction(
+	const UObject* WorldContextObject, const float IntervalSeconds)
+{
+	if (UFactoryLineSubsystem* Line = GetFactoryLine(WorldContextObject))
+	{
+		Line->StartAutoProduction(IntervalSeconds);
+	}
+}
+
+void UFactoryTwinBlueprintLibrary::StopAutoProduction(const UObject* WorldContextObject)
+{
+	if (UFactoryLineSubsystem* Line = GetFactoryLine(WorldContextObject))
+	{
+		Line->StopAutoProduction();
+	}
+}
+
+bool UFactoryTwinBlueprintLibrary::ToggleAutoProduction(
+	const UObject* WorldContextObject, const float IntervalSeconds)
+{
+	UFactoryLineSubsystem* Line = GetFactoryLine(WorldContextObject);
+	if (Line == nullptr)
+	{
+		return false;
+	}
+
+	if (Line->IsAutoProductionRunning())
+	{
+		Line->StopAutoProduction();
+		return false;
+	}
+
+	Line->StartAutoProduction(IntervalSeconds);
+	return true;
+}
+
+bool UFactoryTwinBlueprintLibrary::IsAutoProductionRunning(const UObject* WorldContextObject)
+{
+	const UFactoryLineSubsystem* Line = GetFactoryLine(WorldContextObject);
+	return Line != nullptr && Line->IsAutoProductionRunning();
+}
+
 bool UFactoryTwinBlueprintLibrary::IsFactoryLineOnline(const UObject* WorldContextObject)
 {
 	const UFactoryLineSubsystem* Line = GetFactoryLine(WorldContextObject);

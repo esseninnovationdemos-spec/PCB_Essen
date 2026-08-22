@@ -14,7 +14,9 @@
 #include "Factories/BlueprintFactory.h"
 #include "IAssetTools.h"
 #include "K2Node.h"
+#include "K2Node_AddDelegate.h"
 #include "K2Node_CallFunction.h"
+#include "K2Node_CustomEvent.h"
 #include "K2Node_Event.h"
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
@@ -613,6 +615,132 @@ FString UBlueprintGraphToolset::GetNode(
 	}
 
 	return BGT::ToJsonString(DescribeNode(*Node, /*bIncludePins*/ true));
+}
+
+FString UBlueprintGraphToolset::AddDelegateBindNode(
+	const FString& BlueprintPath,
+	const FString& GraphName,
+	const FString& ClassName,
+	const FString& DelegatePropertyName,
+	const int32 NodePosX,
+	const int32 NodePosY)
+{
+	UBlueprint* Blueprint = BGT::LoadBlueprint(BlueprintPath);
+	if (!Blueprint)
+	{
+		return FString();
+	}
+
+	UEdGraph* Graph = BGT::FindGraph(Blueprint, GraphName);
+	if (!Graph)
+	{
+		return FString();
+	}
+
+	UClass* OwnerClass = BGT::FindClassByName(ClassName);
+	if (!OwnerClass)
+	{
+		BGT::RaiseError(FString::Printf(TEXT("Class '%s' not found."), *ClassName));
+		return FString();
+	}
+
+	FMulticastDelegateProperty* DelegateProperty = FindFProperty<FMulticastDelegateProperty>(
+		OwnerClass, FName(*DelegatePropertyName));
+	if (DelegateProperty == nullptr)
+	{
+		BGT::RaiseError(FString::Printf(
+			TEXT("'%s' is not a multicast delegate property on '%s'. Only BlueprintAssignable "
+				 "delegates can be bound."), *DelegatePropertyName, *ClassName));
+		return FString();
+	}
+
+	Blueprint->Modify();
+	Graph->Modify();
+
+	UK2Node_AddDelegate* Node = NewObject<UK2Node_AddDelegate>(Graph);
+	// The member reference is what tells the node which delegate it binds; it
+	// must be set before AllocateDefaultPins or the node comes up pinless.
+	Node->SetFromProperty(DelegateProperty, /*bSelfContext*/ false, OwnerClass);
+	Node->NodePosX = NodePosX;
+	Node->NodePosY = NodePosY;
+	Node->CreateNewGuid();
+	Node->PostPlacedNewNode();
+	Node->AllocateDefaultPins();
+	Graph->AddNode(Node, /*bFromUI*/ false, /*bSelectNewNode*/ false);
+
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+	return Node->NodeGuid.ToString();
+}
+
+FString UBlueprintGraphToolset::AddCustomEventNode(
+	const FString& BlueprintPath,
+	const FString& GraphName,
+	const FString& EventName,
+	const FString& SignatureClassName,
+	const FString& SignatureDelegateName,
+	const int32 NodePosX,
+	const int32 NodePosY)
+{
+	UBlueprint* Blueprint = BGT::LoadBlueprint(BlueprintPath);
+	if (!Blueprint)
+	{
+		return FString();
+	}
+
+	UEdGraph* Graph = BGT::FindGraph(Blueprint, GraphName);
+	if (!Graph)
+	{
+		return FString();
+	}
+
+	Blueprint->Modify();
+	Graph->Modify();
+
+	UK2Node_CustomEvent* Node = NewObject<UK2Node_CustomEvent>(Graph);
+	Node->CustomFunctionName = FName(*EventName);
+	Node->NodePosX = NodePosX;
+	Node->NodePosY = NodePosY;
+	Node->CreateNewGuid();
+	Node->PostPlacedNewNode();
+	Node->AllocateDefaultPins();
+
+	// Mirroring a delegate's signature gives the event matching parameter pins,
+	// which is required for it to be bindable to that delegate.
+	if (!SignatureClassName.IsEmpty() && !SignatureDelegateName.IsEmpty())
+	{
+		UClass* OwnerClass = BGT::FindClassByName(SignatureClassName);
+		FMulticastDelegateProperty* DelegateProperty = OwnerClass != nullptr
+			? FindFProperty<FMulticastDelegateProperty>(OwnerClass, FName(*SignatureDelegateName))
+			: nullptr;
+
+		if (DelegateProperty == nullptr)
+		{
+			BGT::RaiseError(FString::Printf(
+				TEXT("Could not find delegate '%s' on '%s' to copy a signature from."),
+				*SignatureDelegateName, *SignatureClassName));
+			return FString();
+		}
+
+		if (const UFunction* Signature = DelegateProperty->SignatureFunction)
+		{
+			for (TFieldIterator<FProperty> It(Signature); It && (It->PropertyFlags & CPF_Parm); ++It)
+			{
+				if (It->HasAnyPropertyFlags(CPF_ReturnParm))
+				{
+					continue;
+				}
+				FEdGraphPinType PinType;
+				if (GetDefault<UEdGraphSchema_K2>()->ConvertPropertyToPinType(*It, PinType))
+				{
+					Node->CreateUserDefinedPin(It->GetFName(), PinType, EGPD_Output, /*bUseUniqueName*/ false);
+				}
+			}
+		}
+	}
+
+	Graph->AddNode(Node, /*bFromUI*/ false, /*bSelectNewNode*/ false);
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+	return Node->NodeGuid.ToString();
 }
 
 bool UBlueprintGraphToolset::AddComponent(

@@ -78,6 +78,37 @@ public:
 	static bool PublishUnsString(
 		const UObject* WorldContextObject, const FString& Topic, const FString& Payload);
 
+	/**
+	 * Releases one board: opens a lot and fires the same path an inbound
+	 * `new_material` command takes. This is what an operator "start new
+	 * material" button should call.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin",
+		meta = (WorldContext = "WorldContextObject", DisplayName = "Request New Material"))
+	static void RequestNewMaterial(const UObject* WorldContextObject);
+
+	/**
+	 * Starts releasing boards continuously.
+	 *
+	 * @param IntervalSeconds Gap between releases; zero uses the project default.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin|Auto Production",
+		meta = (WorldContext = "WorldContextObject", DisplayName = "Start Auto Production"))
+	static void StartAutoProduction(const UObject* WorldContextObject, float IntervalSeconds = 0.0f);
+
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin|Auto Production",
+		meta = (WorldContext = "WorldContextObject", DisplayName = "Stop Auto Production"))
+	static void StopAutoProduction(const UObject* WorldContextObject);
+
+	/** Flips auto production on or off; handy for a single UI toggle. */
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin|Auto Production",
+		meta = (WorldContext = "WorldContextObject", DisplayName = "Toggle Auto Production"))
+	static bool ToggleAutoProduction(const UObject* WorldContextObject, float IntervalSeconds = 0.0f);
+
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Auto Production",
+		meta = (WorldContext = "WorldContextObject", DisplayName = "Is Auto Production Running"))
+	static bool IsAutoProductionRunning(const UObject* WorldContextObject);
+
 	/** True once NBIRTH is out and devices are publishing. */
 	UFUNCTION(BlueprintPure, Category = "Factory Twin",
 		meta = (WorldContext = "WorldContextObject", DisplayName = "Is Factory Line Online"))

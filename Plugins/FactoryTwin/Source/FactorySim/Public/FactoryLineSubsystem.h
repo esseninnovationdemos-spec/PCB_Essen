@@ -84,6 +84,40 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Factory Twin")
 	FString StartNewLot();
 
+	/**
+	 * Requests one board be started: opens a lot, stamps NEW_MATERIAL on every
+	 * machine, and broadcasts OnNewMaterialRequested.
+	 *
+	 * Both triggers funnel through here -- an inbound NCMD `new_material` and the
+	 * auto-production timer -- so a Blueprint only has to bind
+	 * OnNewMaterialRequested once to serve both.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin")
+	void RequestNewMaterial();
+
+	/**
+	 * Begins releasing boards on a timer.
+	 *
+	 * @param IntervalSeconds Gap between releases. Zero or less uses the
+	 *                        configured default.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin|Auto Production")
+	void StartAutoProduction(float IntervalSeconds = 0.0f);
+
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin|Auto Production")
+	void StopAutoProduction();
+
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Auto Production")
+	bool IsAutoProductionRunning() const;
+
+	/** Interval currently in use. Zero when auto production is stopped. */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Auto Production")
+	float GetAutoProductionInterval() const { return AutoProductionInterval; }
+
+	/** Boards released since auto production last started. */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Auto Production")
+	int32 GetBoardsReleased() const { return BoardsReleased; }
+
 	UFUNCTION(BlueprintPure, Category = "Factory Twin")
 	USparkplugEdgeNode* GetEdgeNode() const { return EdgeNode; }
 
@@ -116,6 +150,12 @@ private:
 	/** Announces every registered machine as a Sparkplug device. */
 	void RegisterDevicesWithEdgeNode();
 
+	/** Registers devices and connects. Deferred a tick past StartLineWithConfig. */
+	void BeginEdgeNodeSession();
+
+	/** True when a machine with this Sparkplug device id is already registered. */
+	bool HasDeviceId(const FString& DeviceId) const;
+
 	UPROPERTY(Transient)
 	TObjectPtr<USparkplugEdgeNode> EdgeNode;
 
@@ -123,4 +163,11 @@ private:
 	TArray<TObjectPtr<UFactoryMachineComponent>> Machines;
 
 	FString LotId;
+
+	/** Held between StartLineWithConfig and the deferred BeginEdgeNodeSession. */
+	FSparkplugEdgeNodeConfig PendingConfig;
+
+	FTimerHandle AutoProductionTimer;
+	float AutoProductionInterval = 0.0f;
+	int32 BoardsReleased = 0;
 };

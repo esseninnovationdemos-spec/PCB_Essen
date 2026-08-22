@@ -34,6 +34,24 @@ public:
 	bool bAutoStartOnBeginPlay = false;
 
 	/**
+	 * Keep releasing boards for as long as the line is up, instead of waiting
+	 * for an operator button press or an inbound `new_material` command.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Auto Production")
+	bool bAutoProduceOnStart = false;
+
+	/**
+	 * Gap between board releases.
+	 *
+	 * This is line takt, not machine cycle time. Releasing faster than the
+	 * slowest station can clear will pile boards up at that station -- which is
+	 * a legitimate thing to simulate, but do it deliberately.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Auto Production",
+		meta = (ClampMin = "0.1", Units = "s"))
+	float AutoProductionIntervalSeconds = 30.0f;
+
+	/**
 	 * Identity and broker settings.
 	 *
 	 * Group and node id are wire-visible; the downstream ClickHouse bridge and

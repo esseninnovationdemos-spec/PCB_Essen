@@ -8,7 +8,7 @@ why the in-editor Python layer currently fails with "No module named 'paho'".
     pip install paho-mqtt protobuf
     python Tools/broker/spb_dump.py [--host localhost] [--port 1883]
 
-Reuses Content/Python/sparkplug_b_pb2.py as the schema, so what this prints is
+Reuses Tools/broker/sparkplug_b_pb2.py as the schema, so what this prints is
 what a real Sparkplug consumer (Ignition, the ClickHouse bridge) would see. That
 makes it the oracle for the byte-parity gate in Phase 2.
 """

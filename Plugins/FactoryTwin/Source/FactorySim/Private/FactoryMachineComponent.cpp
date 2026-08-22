@@ -42,9 +42,15 @@ void UFactoryMachineComponent::BeginPlay()
 
 	if (Instance == nullptr || Instance->Archetype == nullptr)
 	{
-		UE_LOG(LogFactorySim, Warning,
-			TEXT("%s has a FactoryMachineComponent with no instance or archetype; it will not publish"),
-			*GetNameSafe(GetOwner()));
+		// No instance with auto-register off is a deliberate disable, so stay
+		// quiet -- otherwise an actor spawned per board would log once each time.
+		if (bAutoRegister)
+		{
+			UE_LOG(LogFactorySim, Warning,
+				TEXT("%s has a FactoryMachineComponent with no instance or archetype; "
+					 "it will not publish"),
+				*GetNameSafe(GetOwner()));
+		}
 		SetComponentTickEnabled(false);
 		return;
 	}

@@ -81,6 +81,54 @@ public:
 		const FString& BlueprintPath, const FString& GraphName, const FString& NodeGuid);
 
 	/**
+	 * Adds a "Bind Event to <Delegate>" node for a BlueprintAssignable multicast
+	 * delegate, the node the editor creates when you bind an event in the
+	 * details panel.
+	 *
+	 * Feed its 'Delegate' pin from a custom event's 'OutputDelegate' pin and its
+	 * 'self' pin from whatever owns the delegate.
+	 * Raises an error if the class or delegate property cannot be found.
+	 * @param BlueprintPath The Blueprint asset path, e.g. '/Game/BP_Thing'.
+	 * @param GraphName The graph to add the node to, e.g. 'EventGraph'.
+	 * @param ClassName Class owning the delegate, e.g. 'FactoryLineSubsystem'.
+	 * @param DelegatePropertyName The multicast delegate property, e.g. 'OnNewMaterialRequested'.
+	 * @param NodePosX Horizontal position in the graph.
+	 * @param NodePosY Vertical position in the graph.
+	 * @return GUID of the created node, or empty on failure.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "BlueprintGraphToolset")
+	static FString AddDelegateBindNode(
+		const FString& BlueprintPath,
+		const FString& GraphName,
+		const FString& ClassName,
+		const FString& DelegatePropertyName,
+		int32 NodePosX,
+		int32 NodePosY);
+
+	/**
+	 * Adds a custom event node, whose 'OutputDelegate' pin can be bound to a
+	 * multicast delegate.
+	 * Raises an error if the Blueprint or graph cannot be found, or the name is taken.
+	 * @param BlueprintPath The Blueprint asset path, e.g. '/Game/BP_Thing'.
+	 * @param GraphName The graph to add the event to, e.g. 'EventGraph'.
+	 * @param EventName Name for the new custom event.
+	 * @param SignatureClassName Optional class owning a delegate whose signature the event should match. Empty for no parameters.
+	 * @param SignatureDelegateName Optional delegate property supplying the signature.
+	 * @param NodePosX Horizontal position in the graph.
+	 * @param NodePosY Vertical position in the graph.
+	 * @return GUID of the created node, or empty on failure.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "BlueprintGraphToolset")
+	static FString AddCustomEventNode(
+		const FString& BlueprintPath,
+		const FString& GraphName,
+		const FString& EventName,
+		const FString& SignatureClassName,
+		const FString& SignatureDelegateName,
+		int32 NodePosX,
+		int32 NodePosY);
+
+	/**
 	 * Adds a component to a Blueprint's construction hierarchy.
 	 * Raises an error if the Blueprint or component class cannot be found.
 	 * @param BlueprintPath The Blueprint asset path, e.g. '/Game/BP_Thing'.

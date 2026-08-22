@@ -94,6 +94,33 @@ void UFactoryLineSubsystem::StartLineWithConfig(const FSparkplugEdgeNodeConfig& 
 	EdgeNode->OnOnlineStateChanged.AddDynamic(this, &UFactoryLineSubsystem::HandleEdgeNodeOnline);
 	EdgeNode->OnNodeCommand.AddDynamic(this, &UFactoryLineSubsystem::HandleNodeCommand);
 
+	PendingConfig = InConfig;
+
+	// Defer the actual session by a tick.
+	//
+	// Whichever Blueprint calls this does so from its own BeginPlay, and actor
+	// BeginPlay order is arbitrary -- connecting immediately announced the node
+	// with only the two machines that happened to have registered first, leaving
+	// the rest to trickle in as late DBIRTHs. One tick is enough for every actor
+	// in the level to have begun play and registered.
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimerForNextTick(
+			this, &UFactoryLineSubsystem::BeginEdgeNodeSession);
+	}
+	else
+	{
+		BeginEdgeNodeSession();
+	}
+}
+
+void UFactoryLineSubsystem::BeginEdgeNodeSession()
+{
+	if (EdgeNode == nullptr)
+	{
+		return;
+	}
+
 	// Devices must be registered before Connect so their DBIRTHs are part of the
 	// birth sequence rather than trickling in afterwards.
 	RegisterDevicesWithEdgeNode();
@@ -101,7 +128,27 @@ void UFactoryLineSubsystem::StartLineWithConfig(const FSparkplugEdgeNodeConfig& 
 	UE_LOG(LogFactorySim, Log, TEXT("Starting line with %d machine(s), lot '%s'"),
 		Machines.Num(), *LotId);
 
-	EdgeNode->Connect(InConfig);
+	EdgeNode->Connect(PendingConfig);
+
+	const UFactoryTwinSettings* Settings = UFactoryTwinSettings::Get();
+	if (Settings != nullptr && Settings->bAutoProduceOnStart)
+	{
+		StartAutoProduction(Settings->AutoProductionIntervalSeconds);
+	}
+}
+
+bool UFactoryLineSubsystem::HasDeviceId(const FString& DeviceId) const
+{
+	for (const TObjectPtr<UFactoryMachineComponent>& Machine : Machines)
+	{
+		if (Machine != nullptr
+			&& Machine->Instance != nullptr
+			&& Machine->Instance->DeviceId == DeviceId)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 bool UFactoryLineSubsystem::StartLineWithBroker(
@@ -161,6 +208,10 @@ bool UFactoryLineSubsystem::PublishDeviceEvent(const FString& DeviceId, const FS
 
 void UFactoryLineSubsystem::StopLine()
 {
+	// Releasing boards onto a line that is going offline would emit events with
+	// nowhere to publish them.
+	StopAutoProduction();
+
 	if (EdgeNode == nullptr)
 	{
 		return;
@@ -188,6 +239,21 @@ void UFactoryLineSubsystem::RegisterMachine(UFactoryMachineComponent* Machine)
 	{
 		return;
 	}
+
+	// A Sparkplug device id must be unique on the edge node. Two components
+	// claiming the same id would publish interleaved DDATA under one identity
+	// and re-announce a DBIRTH each time, which is how a machine component
+	// accidentally placed on a per-board spawned actor shows up.
+	if (Machine->Instance != nullptr && HasDeviceId(Machine->Instance->DeviceId))
+	{
+		UE_LOG(LogFactorySim, Warning,
+			TEXT("%s claims device id '%s', which is already registered. Ignoring it: a device "
+				 "id maps to one physical machine, so this component likely belongs on a "
+				 "persistent actor rather than one spawned per board."),
+			*GetNameSafe(Machine->GetOwner()), *Machine->Instance->DeviceId);
+		return;
+	}
+
 	Machines.Add(Machine);
 
 	// Joining an already-live line announces immediately.
@@ -249,23 +315,85 @@ void UFactoryLineSubsystem::HandleNodeCommand(const FSparkplugPayload& Payload)
 {
 	for (const FSparkplugMetric& Metric : Payload.Metrics)
 	{
-		// `new_material` is the command the existing Python spawn_hook bridged
-		// to the PCB spawner; keeping the name keeps controllers working.
+		// `new_material` is the command the retired Python spawn_hook bridged to
+		// the PCB spawner; keeping the name keeps existing controllers working.
 		if (Metric.Name == TEXT("new_material") && Metric.IntValue != 0)
 		{
-			const FString NewLot = StartNewLot();
-			UE_LOG(LogFactorySim, Log, TEXT("new_material command; starting lot '%s'"), *NewLot);
-
-			// Fan the event out to every machine, matching the Python behaviour.
-			for (const TObjectPtr<UFactoryMachineComponent>& Machine : Machines)
-			{
-				if (Machine != nullptr)
-				{
-					Machine->PublishEvent(FactoryEventTypes::NewMaterial);
-				}
-			}
-
-			OnNewMaterialRequested.Broadcast(NewLot);
+			UE_LOG(LogFactorySim, Log, TEXT("new_material command received"));
+			RequestNewMaterial();
 		}
 	}
+}
+
+void UFactoryLineSubsystem::RequestNewMaterial()
+{
+	const FString NewLot = StartNewLot();
+	++BoardsReleased;
+
+	// Stamp every machine, matching what the Python layer did on this command.
+	for (const TObjectPtr<UFactoryMachineComponent>& Machine : Machines)
+	{
+		if (Machine != nullptr)
+		{
+			Machine->PublishEvent(FactoryEventTypes::NewMaterial);
+		}
+	}
+
+	UE_LOG(LogFactorySim, Log, TEXT("New material released, lot '%s' (board %d)"),
+		*NewLot, BoardsReleased);
+
+	OnNewMaterialRequested.Broadcast(NewLot);
+}
+
+void UFactoryLineSubsystem::StartAutoProduction(const float IntervalSeconds)
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr)
+	{
+		return;
+	}
+
+	const UFactoryTwinSettings* Settings = UFactoryTwinSettings::Get();
+	float Interval = IntervalSeconds;
+	if (Interval <= 0.0f)
+	{
+		Interval = Settings != nullptr ? Settings->AutoProductionIntervalSeconds : 30.0f;
+	}
+	// A zero or negative period would schedule a timer that fires every frame.
+	Interval = FMath::Max(Interval, 0.1f);
+
+	StopAutoProduction();
+
+	AutoProductionInterval = Interval;
+	BoardsReleased = 0;
+
+	World->GetTimerManager().SetTimer(
+		AutoProductionTimer, this, &UFactoryLineSubsystem::RequestNewMaterial,
+		Interval, /*bLoop*/ true, /*FirstDelay*/ 0.0f);
+
+	UE_LOG(LogFactorySim, Log,
+		TEXT("Auto production started, releasing a board every %.1fs"), Interval);
+}
+
+void UFactoryLineSubsystem::StopAutoProduction()
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (AutoProductionTimer.IsValid())
+		{
+			World->GetTimerManager().ClearTimer(AutoProductionTimer);
+			UE_LOG(LogFactorySim, Log,
+				TEXT("Auto production stopped after %d board(s)"), BoardsReleased);
+		}
+	}
+	AutoProductionTimer.Invalidate();
+	AutoProductionInterval = 0.0f;
+}
+
+bool UFactoryLineSubsystem::IsAutoProductionRunning() const
+{
+	const UWorld* World = GetWorld();
+	return World != nullptr
+		&& AutoProductionTimer.IsValid()
+		&& World->GetTimerManager().IsTimerActive(AutoProductionTimer);
 }

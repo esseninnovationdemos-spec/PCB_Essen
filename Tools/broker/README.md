@@ -38,7 +38,7 @@ docker exec factorytwin-mosquitto mosquitto_sub -h localhost -t 'spBv1.0/#' -v
 
 This is the cross-check that proves the C++ encoder is wire-compatible: capture
 what Unreal publishes, then decode it with the project's own
-`Content/Python/sparkplug_b_pb2.py`.
+`Tools/broker/sparkplug_b_pb2.py`.
 
 ```bash
 # 1. Arm a one-shot capture (-N suppresses the newline mosquitto_sub would append)
@@ -54,7 +54,7 @@ docker cp factorytwin-mosquitto:/tmp/cap.bin Tools/broker/_capture/nbirth.bin
 # 4. Decode
 docker run --rm \
   -e PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python \
-  -v "$PWD/Content/Python:/spb:ro" \
+  -v "$PWD/Tools/broker:/spb:ro" \
   -v "$PWD/Tools/broker/_capture:/data:ro" \
   -v "$PWD/Tools/broker/decode_capture.py:/decode.py:ro" \
   python:3.11-slim sh -c "pip install --quiet 'protobuf==3.20.3' && python /decode.py"
@@ -92,7 +92,7 @@ A live subscriber that pretty-prints decoded payloads as they arrive. Needs
 ```bash
 docker run --rm --network host \
   -e PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python \
-  -v "$PWD/Content/Python:/spb:ro" \
+  -v "$PWD/Tools/broker:/spb:ro" \
   -v "$PWD/Tools/broker/spb_dump.py:/spb_dump.py:ro" \
   python:3.11-slim sh -c "pip install --quiet 'protobuf==3.20.3' paho-mqtt && python /spb_dump.py --host host.docker.internal"
 ```
