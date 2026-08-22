@@ -2,7 +2,9 @@
 
 #include "Engine/World.h"
 #include "FactoryLineSubsystem.h"
+#include "FactoryProductionLine.h"
 #include "FactorySimTypes.h"
+#include "EngineUtils.h"
 
 UFactoryLineSubsystem* UFactoryTwinBlueprintLibrary::GetFactoryLine(
 	const UObject* WorldContextObject)
@@ -153,4 +155,21 @@ FVector UFactoryTwinBlueprintLibrary::FactoryLayoutToWorld(
 float UFactoryTwinBlueprintLibrary::GetFactoryGridPitchMetres()
 {
 	return FactoryGrid::GetPitchMetres();
+}
+
+AFactoryProductionLine* UFactoryTwinBlueprintLibrary::GetProductionLine(
+	const UObject* WorldContextObject)
+{
+	const UWorld* World = GEngine != nullptr
+		? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull)
+		: nullptr;
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+	for (TActorIterator<AFactoryProductionLine> It(const_cast<UWorld*>(World)); It; ++It)
+	{
+		return *It;
+	}
+	return nullptr;
 }

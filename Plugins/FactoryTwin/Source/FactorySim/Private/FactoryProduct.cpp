@@ -10,8 +10,8 @@ namespace
 	const TCHAR* CubeMesh = TEXT("/Engine/BasicShapes/Cube.Cube");
 	const TCHAR* SphereMesh = TEXT("/Engine/BasicShapes/Sphere.Sphere");
 
-	// Everything is laid out relative to the carrier's centre, in centimetres,
-	// with the carrier 2 cm thick so its top face sits at z = 1.
+	// Laid out with the actor's origin at the underside of the carrier, so a unit
+	// placed at a belt's surface height sits on it rather than half sunk into it.
 	const FVector CarrierSize(0.34, 0.26, 0.03);
 	const FVector HousingSize(0.18, 0.12, 0.045);
 	const FVector ConnectorSize(0.05, 0.09, 0.03);
@@ -28,16 +28,16 @@ AFactoryProduct::AFactoryProduct()
 	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
 
-	Carrier   = CreatePart(TEXT("Carrier"),   CarrierSize,   FVector(0.0, 0.0, 0.0));
-	Housing   = CreatePart(TEXT("Housing"),   HousingSize,   FVector(0.0, 0.0, 3.25));
-	Connector = CreatePart(TEXT("Connector"), ConnectorSize, FVector(11.5, 0.0, 3.25));
+	Carrier   = CreatePart(TEXT("Carrier"),   CarrierSize,   FVector(0.0, 0.0, 1.5));
+	Housing   = CreatePart(TEXT("Housing"),   HousingSize,   FVector(0.0, 0.0, 5.25));
+	Connector = CreatePart(TEXT("Connector"), ConnectorSize, FVector(11.5, 0.0, 5.25));
 	// The board sits on the housing rather than inside it. A unit that has been
 	// populated should look populated; a board hidden in a closed box would be
 	// realistic and useless.
-	Board     = CreatePart(TEXT("Board"),     BoardSize,     FVector(0.0, 0.0, 5.7));
-	Lid       = CreatePart(TEXT("Lid"),       LidSize,       FVector(0.0, 0.0, 6.3));
-	Carton    = CreatePart(TEXT("Carton"),    CartonSize,    FVector(0.0, 0.0, 9.0));
-	StatusLamp = CreatePart(TEXT("StatusLamp"), LampSize,    FVector(-12.0, 0.0, 3.0));
+	Board     = CreatePart(TEXT("Board"),     BoardSize,     FVector(0.0, 0.0, 7.7));
+	Lid       = CreatePart(TEXT("Lid"),       LidSize,       FVector(0.0, 0.0, 8.3));
+	Carton    = CreatePart(TEXT("Carton"),    CartonSize,    FVector(0.0, 0.0, 8.0));
+	StatusLamp = CreatePart(TEXT("StatusLamp"), LampSize,    FVector(-13.0, 0.0, 5.0));
 }
 
 UStaticMeshComponent* AFactoryProduct::CreatePart(

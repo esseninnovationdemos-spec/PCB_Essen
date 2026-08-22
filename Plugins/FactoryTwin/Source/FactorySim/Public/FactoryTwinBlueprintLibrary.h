@@ -6,6 +6,7 @@
 
 #include "FactoryTwinBlueprintLibrary.generated.h"
 
+class AFactoryProductionLine;
 class UFactoryLineSubsystem;
 
 /**
@@ -149,6 +150,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Factory Twin|Layout",
 		meta = (DisplayName = "Factory Layout To World"))
 	static FVector FactoryLayoutToWorld(FVector2D PositionMetres, float HeightCm = 0.0f);
+
+	/**
+	 * The production line in this world, or null if the level has none.
+	 *
+	 * Saves an operator panel from holding a hard reference to an actor the
+	 * level builder placed.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Line",
+		meta = (WorldContext = "WorldContextObject", DisplayName = "Get Production Line"))
+	static AFactoryProductionLine* GetProductionLine(const UObject* WorldContextObject);
 
 	/** Configured grid pitch, in metres. */
 	UFUNCTION(BlueprintPure, Category = "Factory Twin|Layout",

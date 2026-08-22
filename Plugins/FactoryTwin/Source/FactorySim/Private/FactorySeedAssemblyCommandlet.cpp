@@ -380,6 +380,10 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	RobotType = Resolve(RobotType, TEXT("A_RoboticArm"));
 	PackType = Resolve(PackType, TEXT("A_Packaging"));
 	BufferType = Resolve(BufferType, TEXT("A_Buffer"));
+	// The conveyor archetype is shared with the SMT line; this line only adds
+	// a placement of it.
+	UFactoryMachineArchetype* ConveyorType = LoadObject<UFactoryMachineArchetype>(
+		nullptr, TEXT("/Game/FactoryTwin/Archetypes/A_Conveyor.A_Conveyor"));
 
 	int64 NextAlias = AssemblyAliasBase;
 
@@ -422,7 +426,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_PinInsertion"), PressType,
-		TEXT("PIN_INSERTION"), TEXT("PinInsertion"), { 2.5, 0.0 }, { 1.6, 1.4 }))
+		TEXT("PIN_INSERTION"), TEXT("PinInsertion"), { 3.5, 0.0 }, { 1.6, 1.4 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("insertion_force_n"), TEXT("insertion_depth_mm"), TEXT("cycle_time_sec") });
@@ -430,7 +434,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_AssemblyRobot"), RobotType,
-		TEXT("ASSEMBLY_ROBOT"), TEXT("HandlingRobot"), { 5.0, 1.5 }, { 1.2, 1.2 }))
+		TEXT("ASSEMBLY_ROBOT"), TEXT("HandlingRobot"), { 7.0, 1.5 }, { 1.2, 1.2 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("tcp_speed_mms"), TEXT("joint_load_pct"), TEXT("payload_kg"),
@@ -439,7 +443,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_InCircuitTest"), IctType,
-		TEXT("ICT"), TEXT("ICT"), { 7.5, 0.0 }, { 1.8, 1.4 }))
+		TEXT("ICT"), TEXT("ICT"), { 10.5, 0.0 }, { 1.8, 1.4 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("test_voltage_v"), TEXT("test_current_ma"), TEXT("insulation_mohm"),
@@ -448,7 +452,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_FlashProgramming"), FlashType,
-		TEXT("FLASH_PROGRAMMING"), TEXT("FlashProgramming"), { 10.0, 0.0 }, { 1.4, 1.2 }))
+		TEXT("FLASH_PROGRAMMING"), TEXT("FlashProgramming"), { 14.0, 0.0 }, { 1.4, 1.2 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("flash_throughput_kbs"), TEXT("flash_bytes"), TEXT("cycle_time_sec") });
@@ -456,14 +460,14 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_AssemblyBuffer"), BufferType,
-		TEXT("ASSEMBLY_BUFFER"), TEXT("Buffer"), { 12.5, 0.0 }, { 2.4, 0.8 }))
+		TEXT("ASSEMBLY_BUFFER"), TEXT("Buffer"), { 17.5, 0.0 }, { 2.4, 0.8 }))
 	{
 		NextAlias = PinAliases(I, NextAlias, { TEXT("occupancy"), TEXT("fill_pct") });
 		Created.Add(I);
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_EndOfLineTest"), EolType,
-		TEXT("EOL_TEST"), TEXT("EndOfLineTest"), { 17.5, 0.0 }, { 1.8, 1.4 }))
+		TEXT("EOL_TEST"), TEXT("EndOfLineTest"), { 24.5, 0.0 }, { 1.8, 1.4 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("supply_current_ma"), TEXT("boot_time_ms"), TEXT("cycle_time_sec") });
@@ -471,7 +475,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_Packaging"), PackType,
-		TEXT("PACKAGING"), TEXT("Packaging"), { 20.0, 0.0 }, { 2.2, 1.6 }))
+		TEXT("PACKAGING"), TEXT("Packaging"), { 28.0, 0.0 }, { 2.2, 1.6 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("units_in_carton"), TEXT("seal_temp_c"), TEXT("cycle_time_sec") });
@@ -482,11 +486,22 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	// Same RoboticArm archetype as the UR5 handler, which is the point: one
 	// archetype, two physically different robots.
 	if (UFactoryMachineInstance* I = Make(TEXT("I_KukaHandler"), RobotType,
-		TEXT("KUKA_HANDLER"), TEXT("KukaHandler"), { 15.0, 2.0 }, { 1.1, 1.1 }))
+		TEXT("KUKA_HANDLER"), TEXT("KukaHandler"), { 21.0, 2.0 }, { 1.1, 1.1 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("tcp_speed_mms"), TEXT("joint_load_pct"), TEXT("payload_kg"),
 			  TEXT("cycle_time_sec") });
+		Created.Add(I);
+	}
+
+	// Appended last on purpose: aliases are handed out in creation order, so a
+	// new device anywhere earlier would renumber everything after it and break
+	// the downstream mapping.
+	if (UFactoryMachineInstance* I = Make(TEXT("I_AssemblyConveyor"), ConveyorType,
+		TEXT("ASSEMBLY_CONVEYOR"), TEXT("Conveyor"), { 14.0, 0.0 }, { 28.0, 0.8 }))
+	{
+		NextAlias = PinAliases(I, NextAlias,
+			{ TEXT("belt_speed"), TEXT("motor_temp"), TEXT("rpm"), TEXT("torque") });
 		Created.Add(I);
 	}
 

@@ -9,6 +9,7 @@
 #include "FactoryMachineInstance.h"
 #include "FactoryShapeMaterials.h"
 #include "FactorySimTypes.h"
+#include "Blueprint/UserWidget.h"
 #include "Materials/MaterialInterface.h"
 
 AFactoryProductionLine::AFactoryProductionLine()
@@ -88,6 +89,19 @@ void AFactoryProductionLine::BeginPlay()
 	}
 
 	UWorld* World = GetWorld();
+
+	// The panel is put up regardless of whether the broker is reachable: an
+	// operator needs the controls in order to connect in the first place.
+	if (HudWidgetClass != nullptr && World != nullptr
+		&& World->GetFirstPlayerController() != nullptr)
+	{
+		HudWidget = CreateWidget<UUserWidget>(World->GetFirstPlayerController(), HudWidgetClass);
+		if (HudWidget != nullptr)
+		{
+			HudWidget->AddToViewport();
+		}
+	}
+
 	UFactoryLineSubsystem* Line = (World != nullptr)
 		? World->GetSubsystem<UFactoryLineSubsystem>() : nullptr;
 
@@ -155,6 +169,8 @@ void AFactoryProductionLine::StartProduction()
 	// Release the first unit immediately rather than after a full takt, so a
 	// short run shows something without a wait.
 	TaktAccumulator = TaktSeconds;
+
+	SetConveyorRunning(true);
 	UE_LOG(LogFactorySim, Display,
 		TEXT("Production line started: %d stop(s), %.1fs takt"), Stops.Num(), TaktSeconds);
 }
@@ -162,6 +178,27 @@ void AFactoryProductionLine::StartProduction()
 void AFactoryProductionLine::StopProduction()
 {
 	bProducing = false;
+	SetConveyorRunning(false);
+}
+
+void AFactoryProductionLine::SetConveyorRunning(const bool bRunning)
+{
+	if (ConveyorDeviceId.IsEmpty())
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	UFactoryLineSubsystem* Line = (World != nullptr)
+		? World->GetSubsystem<UFactoryLineSubsystem>() : nullptr;
+	if (Line == nullptr)
+	{
+		return;
+	}
+	if (UFactoryMachineComponent* Conveyor = Line->FindMachine(ConveyorDeviceId))
+	{
+		Conveyor->SetMachineState(bRunning
+			? EFactoryMachineState::Running : EFactoryMachineState::Idle);
+	}
 }
 
 UFactoryMachineComponent* AFactoryProductionLine::MachineForStop(const int32 StopIndex) const
@@ -414,4 +451,50 @@ void AFactoryProductionLine::Tick(const float DeltaSeconds)
 		TaktAccumulator = 0.0f;
 		SpawnUnit();
 	}
+}
+
+FText AFactoryProductionLine::GetLineStateText() const
+{
+	if (!bProducing)
+	{
+		return NSLOCTEXT("FactoryTwin", "LineStopped", "Line: stopped");
+	}
+	// Blocked units are the interesting case: the line is running but something
+	// downstream is not taking work, and that is worth saying out loud.
+	int32 Blocked = 0;
+	for (const FFactoryUnitInFlight& Unit : Units)
+	{
+		if (Unit.bBlocked)
+		{
+			++Blocked;
+		}
+	}
+	if (Blocked > 0)
+	{
+		return FText::Format(
+			NSLOCTEXT("FactoryTwin", "LineBlocked", "Line: running ({0} blocked)"),
+			FText::AsNumber(Blocked));
+	}
+	return NSLOCTEXT("FactoryTwin", "LineRunning", "Line: running");
+}
+
+FText AFactoryProductionLine::GetInProgressText() const
+{
+	return FText::Format(
+		NSLOCTEXT("FactoryTwin", "InProgress", "Units in progress: {0}"),
+		FText::AsNumber(Units.Num()));
+}
+
+FText AFactoryProductionLine::GetCompletedText() const
+{
+	return FText::Format(
+		NSLOCTEXT("FactoryTwin", "Completed", "Units completed: {0}"),
+		FText::AsNumber(UnitsCompleted));
+}
+
+FText AFactoryProductionLine::GetTaktText() const
+{
+	return FText::Format(
+		NSLOCTEXT("FactoryTwin", "Takt", "Takt: {0} s"),
+		FText::AsNumber(FMath::RoundToInt(TaktSeconds)));
 }

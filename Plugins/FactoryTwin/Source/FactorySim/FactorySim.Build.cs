@@ -15,6 +15,8 @@ public class FactorySim : ModuleRules
 				"MqttTransport",
 				"SparkplugB",
 				"DeveloperSettings",
+				// The line puts its operator panel on screen itself.
+				"UMG",
 			}
 			);
 

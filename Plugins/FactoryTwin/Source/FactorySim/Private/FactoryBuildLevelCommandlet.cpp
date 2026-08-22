@@ -7,12 +7,14 @@
 #include "Components/SkyLightComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
+#include "GameFramework/PlayerStart.h"
 #include "Engine/World.h"
 #include "FileHelpers.h"
 #include "FactoryCycleDriverComponent.h"
 #include "FactoryMachineComponent.h"
 #include "FactoryLayoutGrid.h"
 #include "FactoryMachineInstance.h"
+#include "FactoryConveyor.h"
 #include "FactoryProductionLine.h"
 #include "FactoryShapeMaterials.h"
 #include "FactoryRobotArm.h"
@@ -68,16 +70,23 @@ namespace LevelBuild
 
 	const FLineStopSpec LineStops[] = {
 		{ TEXT("HOUSING_ASSEMBLY"),   0.0, EFactoryProductStage::HousingFitted },
-		{ TEXT("PIN_INSERTION"),      2.5, EFactoryProductStage::PinsInserted },
-		{ TEXT("ASSEMBLY_ROBOT"),     5.0, EFactoryProductStage::BoardFitted },
-		{ TEXT("ICT"),                7.5, EFactoryProductStage::Tested },
-		{ TEXT("FLASH_PROGRAMMING"), 10.0, EFactoryProductStage::Programmed },
+		{ TEXT("PIN_INSERTION"),      3.5, EFactoryProductStage::PinsInserted },
+		{ TEXT("ASSEMBLY_ROBOT"),     7.0, EFactoryProductStage::BoardFitted },
+		{ TEXT("ICT"),               10.5, EFactoryProductStage::Tested },
+		{ TEXT("FLASH_PROGRAMMING"), 14.0, EFactoryProductStage::Programmed },
 		// No machine placed for the buffer, so this is a plain holding position
 		// on the belt -- which is what a buffer is.
-		{ TEXT("ASSEMBLY_BUFFER"),   12.5, EFactoryProductStage::Programmed },
-		{ TEXT("KUKA_HANDLER"),      15.0, EFactoryProductStage::LidFitted },
-		{ TEXT("EOL_TEST"),          17.5, EFactoryProductStage::FunctionTested },
-		{ TEXT("PACKAGING"),         20.0, EFactoryProductStage::Packed },
+		{ TEXT("ASSEMBLY_BUFFER"),   17.5, EFactoryProductStage::Programmed },
+		{ TEXT("KUKA_HANDLER"),      21.0, EFactoryProductStage::LidFitted },
+		{ TEXT("EOL_TEST"),          24.5, EFactoryProductStage::FunctionTested },
+		{ TEXT("PACKAGING"),         28.0, EFactoryProductStage::Packed },
+	};
+
+	/** Where a machine sits across the belt, so conveyor is not run through it. */
+	struct FBeltBlocker
+	{
+		double MinX;
+		double MaxX;
 	};
 
 	/** True when the production line, rather than a timer, drives this machine. */
@@ -203,6 +212,7 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 
 	int32 Placed = 0;
 	int32 Skipped = 0;
+	TArray<FBeltBlocker> Blockers;
 
 	for (const FStationSpec& Spec : AssemblyLine)
 	{
@@ -294,6 +304,15 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 						TEXT("  paired %s with its motion goal"), *Instance->DeviceId);
 				}
 			}
+		}
+
+		// Machines standing on the belt centreline interrupt it; ones set back
+		// from it (the two robots) serve the line from the side and do not.
+		if (FMath::Abs(Instance->LayoutPosition.Y) < 0.5)
+		{
+			const double HalfWidth = Instance->LayoutFootprint.X * 0.5;
+			Blockers.Add({ Instance->LayoutPosition.X - HalfWidth,
+			               Instance->LayoutPosition.X + HalfWidth });
 		}
 
 		++Placed;
@@ -443,14 +462,104 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")))
 	{
 		if (AStaticMeshActor* Floor = World->SpawnActor<AStaticMeshActor>(
-			FVector(900.0, 0.0, -5.0), FRotator::ZeroRotator))
+			FVector(1400.0, 0.0, -5.0), FRotator::ZeroRotator))
 		{
 			Floor->SetMobility(EComponentMobility::Static);
 			Floor->GetStaticMeshComponent()->SetStaticMesh(PlaneMesh);
-			// Plane is 100cm; scale to roughly cover the 20m line.
-			Floor->SetActorScale3D(FVector(40.0, 20.0, 1.0));
+			// Plane is 100cm; scale to cover the full line and its margins.
+			Floor->SetActorScale3D(FVector(48.0, 20.0, 1.0));
 			Floor->SetActorLabel(TEXT("Floor"));
 		}
+	}
+
+	// Conveyor between the machines. Each station carries its own integral
+	// conveyor through its own body, so running belt through them as well would
+	// leave two surfaces fighting at exactly the same height. What is missing is
+	// the stretches in between, which is what gets built here.
+	{
+		Blockers.Sort([](const FBeltBlocker& A, const FBeltBlocker& B)
+		{
+			return A.MinX < B.MinX;
+		});
+
+		const double EntryX = -3.0;
+		const double ExitX = 31.0;
+		// Leave a small air gap so a run does not visually jam into a machine.
+		const double Clearance = 0.15;
+
+		TArray<TPair<double, double>> Runs;
+		double Cursor = EntryX;
+		for (const FBeltBlocker& Blocker : Blockers)
+		{
+			if (Blocker.MinX - Clearance > Cursor)
+			{
+				Runs.Add({ Cursor, Blocker.MinX - Clearance });
+			}
+			Cursor = FMath::Max(Cursor, Blocker.MaxX + Clearance);
+		}
+		if (ExitX > Cursor)
+		{
+			Runs.Add({ Cursor, ExitX });
+		}
+
+		int32 RunIndex = 0;
+		AFactoryConveyor* FirstRun = nullptr;
+		for (const TPair<double, double>& Run : Runs)
+		{
+			const double Length = Run.Value - Run.Key;
+			if (Length < 0.4)
+			{
+				continue;   // too short to read as conveyor; leave the gap open
+			}
+
+			FActorSpawnParameters ConveyorParams;
+			ConveyorParams.SpawnCollisionHandlingOverride =
+				ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+			if (AFactoryConveyor* Conveyor = World->SpawnActor<AFactoryConveyor>(
+				AFactoryConveyor::StaticClass(),
+				FTransform(FRotator::ZeroRotator,
+					FactoryGrid::MetresToWorld(FVector2D(Run.Key, 0.0))),
+				ConveyorParams))
+			{
+				Conveyor->LengthMetres = static_cast<float>(Length);
+				Conveyor->RebuildConveyor();
+				Conveyor->SetActorLabel(FString::Printf(TEXT("Conveyor_%d"), ++RunIndex));
+				if (FirstRun == nullptr)
+				{
+					FirstRun = Conveyor;
+				}
+			}
+		}
+
+		// The transport is one device on the wire, not one per stretch of belt.
+		if (FirstRun != nullptr)
+		{
+			if (UFactoryMachineInstance* ConveyorInstance =
+				LoadObject<UFactoryMachineInstance>(
+					nullptr, TEXT("/Game/FactoryTwin/Instances/I_AssemblyConveyor.I_AssemblyConveyor")))
+			{
+				UFactoryMachineComponent* Machine = NewObject<UFactoryMachineComponent>(
+					FirstRun, UFactoryMachineComponent::StaticClass(), TEXT("FactoryMachine"));
+				Machine->Instance = ConveyorInstance;
+				Machine->RegisterComponent();
+				FirstRun->AddInstanceComponent(Machine);
+				++Placed;
+			}
+		}
+
+		UE_LOG(LogFactorySim, Display,
+			TEXT("  conveyor: %d run(s) between %d machine(s) on the belt"),
+			RunIndex, Blockers.Num());
+	}
+
+	// Somewhere to stand. Without a player start the pawn spawns at the origin,
+	// which on this line is inside the first machine, looking at the underside
+	// of a conveyor.
+	if (APlayerStart* Start = World->SpawnActor<APlayerStart>(
+		FVector(-500.0, -900.0, 250.0), FRotator(-8.0, 35.0, 0.0)))
+	{
+		Start->SetActorLabel(TEXT("ViewingPosition"));
 	}
 
 	// The floor-plan grid, so a placement can be read straight off the level
@@ -460,7 +569,7 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 	{
 		Grid->SetActorLabel(TEXT("FloorGrid"));
 		Grid->MinMetres = FVector2D(-4.0, -6.0);
-		Grid->MaxMetres = FVector2D(24.0, 6.0);
+		Grid->MaxMetres = FVector2D(32.0, 6.0);
 		Grid->RebuildGrid();
 	}
 
@@ -471,8 +580,8 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 	{
 		Line->SetActorLabel(TEXT("AssemblyLine"));
 		Line->EntryMetres = FVector2D(-3.0, 0.0);
-		Line->ExitMetres = FVector2D(23.0, 0.0);
-		Line->TaktSeconds = 12.0f;
+		Line->ExitMetres = FVector2D(31.0, 0.0);
+		Line->TaktSeconds = 18.0f;
 
 		for (const FLineStopSpec& Spec : LineStops)
 		{
@@ -482,6 +591,18 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 			Stop.StageOnComplete = Spec.StageOnComplete;
 			Line->Stops.Add(Stop);
 		}
+		// The panel that shows and drives this line.
+		if (UClass* HudClass = LoadObject<UClass>(
+			nullptr, TEXT("/Game/UI/W_AssemblyPanel.W_AssemblyPanel_C")))
+		{
+			Line->HudWidgetClass = HudClass;
+		}
+		else
+		{
+			UE_LOG(LogFactorySim, Warning,
+				TEXT("W_AssemblyPanel not found; the line will run without a panel"));
+		}
+
 		Line->RebuildBelt();
 
 		UE_LOG(LogFactorySim, Display,

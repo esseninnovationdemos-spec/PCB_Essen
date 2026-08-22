@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FactoryConveyor.h"
 #include "FactoryProduct.h"
 #include "GameFramework/Actor.h"
 
@@ -9,6 +10,7 @@
 class AFactoryProduct;
 class UFactoryMachineComponent;
 class UStaticMeshComponent;
+class UUserWidget;
 
 /** One position on the belt, and the machine that works on whatever stops there. */
 USTRUCT(BlueprintType)
@@ -121,13 +123,24 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Line", meta = (ClampMin = "0.01"))
 	float TransportSpeedMetresPerSecond = 0.9f;
 
-	/** Height of the belt surface, where units ride. */
+	/**
+	 * Height of the belt surface, where units ride.
+	 *
+	 * Defaults to the height every conveyor and every machine's integral
+	 * conveyor in this project shares. A unit riding at any other height does
+	 * not line up with the machines it is supposedly passing through.
+	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Line")
-	float BeltHeightCm = 75.0f;
+	float BeltHeightCm = AFactoryConveyor::BeltHeightCm;
 
-	/** Draw a belt between entry and exit. */
+	/**
+	 * Draw a plain box in place of the belt.
+	 *
+	 * Off by default now that real conveyor is built between the machines; it
+	 * remains for laying out a line before the conveyor exists.
+	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Line")
-	bool bShowBelt = true;
+	bool bShowBelt = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Line", meta = (ClampMin = "0.05"))
 	float BeltWidthMetres = 0.4f;
@@ -135,6 +148,16 @@ public:
 	/** Start releasing units as soon as the line comes online. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Line")
 	bool bAutoStart = true;
+
+	/**
+	 * Conveyor device driven alongside production.
+	 *
+	 * The belt is a machine like any other: it should report running while the
+	 * line runs and idle when it stops, rather than publishing a steady speed
+	 * for a line that is standing still.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Line")
+	FString ConveyorDeviceId = TEXT("ASSEMBLY_CONVEYOR");
 
 	UFUNCTION(BlueprintCallable, Category = "Line")
 	void StartProduction();
@@ -151,6 +174,38 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Line")
 	int32 GetUnitsInProgress() const { return Units.Num(); }
+
+	UFUNCTION(BlueprintPure, Category = "Line")
+	float GetTaktSeconds() const { return TaktSeconds; }
+
+	/**
+	 * Ready-to-display status lines.
+	 *
+	 * Formatted here rather than assembled from Blueprint nodes: the wording is
+	 * part of the line's behaviour, it is the same in every panel that shows it,
+	 * and a string built in C++ can be changed without opening a widget graph.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Line|UI")
+	FText GetLineStateText() const;
+
+	UFUNCTION(BlueprintPure, Category = "Line|UI")
+	FText GetInProgressText() const;
+
+	UFUNCTION(BlueprintPure, Category = "Line|UI")
+	FText GetCompletedText() const;
+
+	UFUNCTION(BlueprintPure, Category = "Line|UI")
+	FText GetTaktText() const;
+
+	/**
+	 * Operator panel put on screen when play begins.
+	 *
+	 * The line owns it rather than a separate manager Blueprint because the
+	 * panel exists to show and drive this line, and pairing them here means a
+	 * level gets its UI simply by having a line in it.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Line|UI")
+	TSubclassOf<UUserWidget> HudWidgetClass;
 
 	/** Rebuilds the belt mesh. Called on construction. */
 	void RebuildBelt();
@@ -184,11 +239,17 @@ private:
 
 	void SpawnUnit();
 
+	/** Puts the conveyor device into Running or Idle. */
+	void SetConveyorRunning(bool bRunning);
+
 	UFUNCTION()
 	void HandleLineOnline(bool bOnline);
 
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> Belt;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> HudWidget;
 
 	bool bProducing = false;
 	bool bBoundToLine = false;
