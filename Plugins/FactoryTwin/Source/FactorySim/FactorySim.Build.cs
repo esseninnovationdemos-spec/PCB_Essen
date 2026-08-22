@@ -25,6 +25,7 @@ public class FactorySim : ModuleRules
 				new string[]
 				{
 					"UnrealEd",
+					"AssetTools",
 					"AssetRegistry",
 				}
 				);

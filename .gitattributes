@@ -31,6 +31,12 @@
 *.upk    binary
 *.udk    binary
 
+# Imported model sources. Same reasoning as the Unreal assets above.
+*.glb    binary
+*.gltf   binary
+*.fbx    binary
+*.dae    binary
+
 # Binary third-party and build artifacts.
 *.dll    binary
 *.lib    binary

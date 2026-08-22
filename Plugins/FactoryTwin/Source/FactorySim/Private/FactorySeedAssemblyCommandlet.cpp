@@ -8,7 +8,7 @@
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
 
-namespace
+namespace AssemblySeed
 {
 	const FString ArchetypeFolder = TEXT("/Game/FactoryTwin/Archetypes");
 	const FString InstanceFolder = TEXT("/Game/FactoryTwin/Instances");
@@ -115,6 +115,36 @@ namespace
 		return true;
 	}
 
+
+	/**
+	 * Returns the archetype, whether it was just created or already existed.
+	 *
+	 * CreateAsset returns null when an asset is present and -Force was not
+	 * passed. Handing that null straight to an instance produced an instance
+	 * with no archetype, which fails silently: the machine component logs at
+	 * BeginPlay and never registers, so the device simply never appears on the
+	 * wire. An incremental re-seed must reuse what is on disk.
+	 */
+	UFactoryMachineArchetype* Resolve(
+		UFactoryMachineArchetype* JustCreated, const TCHAR* AssetName)
+	{
+		if (JustCreated != nullptr)
+		{
+			return JustCreated;
+		}
+
+		const FString Path = FString::Printf(
+			TEXT("%s/%s.%s"), *ArchetypeFolder, AssetName, AssetName);
+		UFactoryMachineArchetype* Existing =
+			LoadObject<UFactoryMachineArchetype>(nullptr, *Path);
+		if (Existing == nullptr)
+		{
+			UE_LOG(LogFactorySim, Error,
+				TEXT("Archetype '%s' neither created nor found on disk"), AssetName);
+		}
+		return Existing;
+	}
+
 	int64 PinAliases(
 		UFactoryMachineInstance* Instance, const int64 Start, const TArray<FString>& OrderedNames)
 	{
@@ -142,6 +172,8 @@ namespace
 		return Next;
 	}
 }
+
+using namespace AssemblySeed;
 
 UFactorySeedAssemblyCommandlet::UFactorySeedAssemblyCommandlet()
 {
@@ -339,6 +371,16 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	// Instances: the Final Assembly line, in process order.
 	// =====================================================================
 
+	// Re-seeding incrementally skips archetypes that already exist, so pick up
+	// the ones on disk before wiring instances to them.
+	PressType = Resolve(PressType, TEXT("A_PressInsertion"));
+	IctType = Resolve(IctType, TEXT("A_ElectricalTest"));
+	FlashType = Resolve(FlashType, TEXT("A_Programming"));
+	EolType = Resolve(EolType, TEXT("A_FunctionalTest"));
+	RobotType = Resolve(RobotType, TEXT("A_RoboticArm"));
+	PackType = Resolve(PackType, TEXT("A_Packaging"));
+	BufferType = Resolve(BufferType, TEXT("A_Buffer"));
+
 	int64 NextAlias = AssemblyAliasBase;
 
 	auto Make = [&](const FString& AssetName,
@@ -425,6 +467,18 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("units_in_carton"), TEXT("seal_temp_c"), TEXT("cycle_time_sec") });
+		Created.Add(I);
+	}
+
+	// A second arm, this one built from the imported KUKA KR10 link meshes.
+	// Same RoboticArm archetype as the UR5 handler, which is the point: one
+	// archetype, two physically different robots.
+	if (UFactoryMachineInstance* I = Make(TEXT("I_KukaHandler"), RobotType,
+		TEXT("KUKA_HANDLER"), TEXT("KukaHandler"), { 12.0, 2.0 }, { 1.1, 1.1 }))
+	{
+		NextAlias = PinAliases(I, NextAlias,
+			{ TEXT("tcp_speed_mms"), TEXT("joint_load_pct"), TEXT("payload_kg"),
+			  TEXT("cycle_time_sec") });
 		Created.Add(I);
 	}
 

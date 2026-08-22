@@ -8,7 +8,7 @@
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
 
-namespace
+namespace SmtSeed
 {
 	const FString ArchetypeFolder = TEXT("/Game/FactoryTwin/Archetypes");
 	const FString InstanceFolder = TEXT("/Game/FactoryTwin/Instances");
@@ -109,6 +109,36 @@ namespace
 		return true;
 	}
 
+
+	/**
+	 * Returns the archetype, whether it was just created or already existed.
+	 *
+	 * CreateAsset returns null when an asset is present and -Force was not
+	 * passed. Handing that null straight to an instance produced an instance
+	 * with no archetype, which fails silently: the machine component logs at
+	 * BeginPlay and never registers, so the device simply never appears on the
+	 * wire. An incremental re-seed must reuse what is on disk.
+	 */
+	UFactoryMachineArchetype* Resolve(
+		UFactoryMachineArchetype* JustCreated, const TCHAR* AssetName)
+	{
+		if (JustCreated != nullptr)
+		{
+			return JustCreated;
+		}
+
+		const FString Path = FString::Printf(
+			TEXT("%s/%s.%s"), *ArchetypeFolder, AssetName, AssetName);
+		UFactoryMachineArchetype* Existing =
+			LoadObject<UFactoryMachineArchetype>(nullptr, *Path);
+		if (Existing == nullptr)
+		{
+			UE_LOG(LogFactorySim, Error,
+				TEXT("Archetype '%s' neither created nor found on disk"), AssetName);
+		}
+		return Existing;
+	}
+
 	/**
 	 * Pins aliases from an explicit, ordered metric list, then the seven
 	 * synthetic extras.
@@ -156,6 +186,8 @@ namespace
 		return Next;
 	}
 }
+
+using namespace SmtSeed;
 
 UFactorySeedCommandlet::UFactorySeedCommandlet()
 {
@@ -367,6 +399,16 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 	// own metrics and then the seven synthetic extras. The ClickHouse bridge is
 	// mapped against these numbers, so the run 1-71 is fixed.
 	// =====================================================================
+
+	// Re-seeding incrementally skips archetypes that already exist, so pick up
+	// the ones on disk before wiring instances to them.
+	ConveyorType = Resolve(ConveyorType, TEXT("A_Conveyor"));
+	PlacerType = Resolve(PlacerType, TEXT("A_PickAndPlace"));
+	ThermalType = Resolve(ThermalType, TEXT("A_ThermalProcess"));
+	LaserType = Resolve(LaserType, TEXT("A_LaserProcess"));
+	VisionType = Resolve(VisionType, TEXT("A_VisionInspection"));
+	ManualType = Resolve(ManualType, TEXT("A_ManualStation"));
+	LineType = Resolve(LineType, TEXT("A_LineAggregate"));
 
 	int64 NextAlias = 1;
 

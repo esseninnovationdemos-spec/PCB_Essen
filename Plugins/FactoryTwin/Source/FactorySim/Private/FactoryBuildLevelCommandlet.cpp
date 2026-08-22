@@ -2,6 +2,9 @@
 
 #include "Engine/DirectionalLight.h"
 #include "Engine/SkyLight.h"
+#include "Components/SkyAtmosphereComponent.h"
+#include "Engine/PostProcessVolume.h"
+#include "Components/SkyLightComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
@@ -9,12 +12,15 @@
 #include "FactoryCycleDriverComponent.h"
 #include "FactoryMachineComponent.h"
 #include "FactoryMachineInstance.h"
+#include "FactoryRobotArm.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/ARFilter.h"
 #include "FactorySimTypes.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
 
-namespace
+namespace LevelBuild
 {
 	/** Instance asset -> the Blueprint that visually represents it. */
 	struct FStationSpec
@@ -43,6 +49,53 @@ namespace
 	/** Layout poses are authored in metres; Unreal works in centimetres. */
 	constexpr double MetresToCm = 100.0;
 
+	/**
+	 * Collects every static mesh the importer produced for one link.
+	 *
+	 * The glTF importer puts each source file in its own folder and names meshes
+	 * from the glTF's internal node names, which the COLLADA conversion mostly
+	 * left as "Default". Some links also arrive split across several meshes. So
+	 * the meshes are gathered by folder rather than looked up by a name we
+	 * cannot predict.
+	 */
+	TArray<TObjectPtr<UStaticMesh>> LoadLinkMeshes(const FString& LinkName)
+	{
+		TArray<TObjectPtr<UStaticMesh>> Meshes;
+
+		const FAssetRegistryModule& Registry =
+			FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+		FARFilter Filter;
+		Filter.bRecursivePaths = true;
+		Filter.PackagePaths.Add(FName(*FString::Printf(
+			TEXT("/Game/FactoryTwin/Robots/KUKA_KR10/%s"), *LinkName)));
+		Filter.ClassPaths.Add(UStaticMesh::StaticClass()->GetClassPathName());
+
+		TArray<FAssetData> Found;
+		Registry.Get().GetAssets(Filter, Found);
+
+		// Sort by name so the hierarchy is stable between rebuilds.
+		Found.Sort([](const FAssetData& A, const FAssetData& B)
+		{
+			return A.AssetName.LexicalLess(B.AssetName);
+		});
+
+		for (const FAssetData& Asset : Found)
+		{
+			if (UStaticMesh* Mesh = Cast<UStaticMesh>(Asset.GetAsset()))
+			{
+				Meshes.Add(Mesh);
+			}
+		}
+
+		if (Meshes.Num() == 0)
+		{
+			UE_LOG(LogFactorySim, Warning,
+				TEXT("No meshes for link '%s'; run -run=FactoryImportRobot first"), *LinkName);
+		}
+		return Meshes;
+	}
+
 	/** Assigns an object-typed Blueprint variable on a spawned actor. */
 	bool SetActorObjectProperty(AActor* Actor, const FName PropertyName, UObject* Value)
 	{
@@ -65,6 +118,8 @@ namespace
 		return true;
 	}
 }
+
+using namespace LevelBuild;
 
 UFactoryBuildLevelCommandlet::UFactoryBuildLevelCommandlet()
 {
@@ -190,6 +245,88 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 			*Instance->DeviceId, Instance->LayoutPosition.X, Instance->LayoutPosition.Y);
 	}
 
+	// The KUKA arm, assembled from the imported ROS-Industrial link meshes. It
+	// is a C++ actor rather than a Blueprint because the chain is built from
+	// URDF geometry, so there is nothing to author by hand.
+	if (UFactoryMachineInstance* KukaInstance = LoadObject<UFactoryMachineInstance>(
+		nullptr, TEXT("/Game/FactoryTwin/Instances/I_KukaHandler.I_KukaHandler")))
+	{
+		FTransform KukaTransform;
+		KukaTransform.SetLocation(FVector(
+			KukaInstance->LayoutPosition.X * MetresToCm,
+			KukaInstance->LayoutPosition.Y * MetresToCm, 0.0));
+
+		FActorSpawnParameters KukaParams;
+		KukaParams.SpawnCollisionHandlingOverride =
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		if (AFactoryRobotArm* Kuka = World->SpawnActor<AFactoryRobotArm>(
+			AFactoryRobotArm::StaticClass(), KukaTransform, KukaParams))
+		{
+			Kuka->SetActorLabel(TEXT("KUKA_HANDLER"));
+			Kuka->BaseMeshes = LoadLinkMeshes(TEXT("base_link"));
+
+			// Derived from the <visual> origins in kr10_r1100_2_macro.xacro.
+			// That origin is the mesh-frame-to-link-frame map, so inverting it
+			// yields each joint's centre and axis directly in the frame the
+			// imported meshes already live in -- which is what this rig needs,
+			// and which forward kinematics would not give, because the CAD pose
+			// the meshes were exported in is not the URDF zero pose.
+			//
+			// Cross-checked against the imported bounds: every centre lands on
+			// the seam between consecutive link meshes.
+			const TCHAR* LinkNames[] = {
+				TEXT("link_1"), TEXT("link_2"), TEXT("link_3"),
+				TEXT("link_4"), TEXT("link_5"), TEXT("link_6") };
+			const FVector JointCentres[] = {
+				{  0.00, 0.00, 20.80 },   // J1 base yaw, at the pedestal seam
+				{  2.50, 9.07, 40.00 },   // J2 shoulder
+				{  2.50, 8.65, 96.00 },   // J3 elbow
+				{ 22.10, 0.00, 98.50 },   // J4 forearm roll
+				{ 54.00, 5.05, 98.50 },   // J5 wrist pitch
+				{ 60.15, 0.00, 98.50 } }; // J6 flange roll
+			const FVector JointAxes[] = {
+				{  0.0, 0.0, -1.0 }, {  0.0, 1.0, 0.0 }, {  0.0, 1.0, 0.0 },
+				{ -1.0, 0.0,  0.0 }, {  0.0, 1.0, 0.0 }, { -1.0, 0.0, 0.0 } };
+			const float Lower[] = { -170.0f, -190.0f, -120.0f, -185.0f, -120.0f, -350.0f };
+			const float Upper[] = {  170.0f,   45.0f,  156.0f,  185.0f,  120.0f,  350.0f };
+
+			for (int32 Index = 0; Index < 6; ++Index)
+			{
+				FFactoryRobotLink Link;
+				Link.Meshes = LoadLinkMeshes(LinkNames[Index]);
+				Link.JointCentre = JointCentres[Index];
+				Link.JointAxis = JointAxes[Index];
+				Link.MinAngle = Lower[Index];
+				Link.MaxAngle = Upper[Index];
+				Kuka->Links.Add(Link);
+			}
+			Kuka->RebuildHierarchy();
+
+			UFactoryMachineComponent* KukaMachine = NewObject<UFactoryMachineComponent>(
+				Kuka, UFactoryMachineComponent::StaticClass(), TEXT("FactoryMachine"));
+			KukaMachine->Instance = KukaInstance;
+			KukaMachine->RegisterComponent();
+			Kuka->AddInstanceComponent(KukaMachine);
+
+			UFactoryCycleDriverComponent* KukaDriver = NewObject<UFactoryCycleDriverComponent>(
+				Kuka, UFactoryCycleDriverComponent::StaticClass(), TEXT("CycleDriver"));
+			KukaDriver->RegisterComponent();
+			Kuka->AddInstanceComponent(KukaDriver);
+
+			++Placed;
+			int32 MeshCount = Kuka->BaseMeshes.Num();
+			for (const FFactoryRobotLink& L : Kuka->Links)
+			{
+				MeshCount += L.Meshes.Num();
+			}
+			UE_LOG(LogFactorySim, Display,
+				TEXT("  placed %-20s at (%.1f, %.1f) m  [KR10, 6 joints, %d meshes]"),
+				TEXT("KUKA_HANDLER"),
+				KukaInstance->LayoutPosition.X, KukaInstance->LayoutPosition.Y, MeshCount);
+		}
+	}
+
 	// The line controller: without it nothing calls StartFactoryLine and the
 	// stations would register but never publish.
 	if (UClass* ManagerClass = LoadObject<UClass>(
@@ -210,11 +347,41 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		FVector(0.0, 0.0, 800.0), FRotator(-50.0, -35.0, 0.0)))
 	{
 		Sun->SetActorLabel(TEXT("Sun"));
-		Sun->GetComponent()->SetIntensity(4.0f);
+		Sun->GetComponent()->SetIntensity(10.0f);
 	}
+
+	// The sky light captures the atmosphere in real time, so there has to be an
+	// atmosphere for it to capture. Without one it captures blackness and
+	// contributes no ambient at all, which leaves everything the sun does not
+	// directly hit unlit.
+	World->SpawnActor<ASkyAtmosphere>(FVector::ZeroVector, FRotator::ZeroRotator);
+
 	if (ASkyLight* Sky = World->SpawnActor<ASkyLight>(FVector(0.0, 0.0, 500.0), FRotator::ZeroRotator))
 	{
 		Sky->SetActorLabel(TEXT("SkyLight"));
+		Sky->GetLightComponent()->SetIntensity(1.0f);
+		Sky->GetLightComponent()->bRealTimeCapture = true;
+	}
+
+	// Bound the auto exposure rather than pin it. An earlier pass let it run
+	// free and a near-empty level drove it to the end of its range, blowing the
+	// scene out to white; the pass after that pinned min and max together, which
+	// removed the adaptation entirely and made the scene depend on the sun's
+	// absolute intensity being guessed correctly -- it was not, and everything
+	// came out black. A wide but bounded range self-corrects either way.
+	if (APostProcessVolume* Exposure = World->SpawnActor<APostProcessVolume>(
+		FVector::ZeroVector, FRotator::ZeroRotator))
+	{
+		Exposure->SetActorLabel(TEXT("ExposureLock"));
+		Exposure->bUnbound = true;
+
+		FPostProcessSettings& Settings = Exposure->Settings;
+		Settings.bOverride_AutoExposureMinBrightness = true;
+		Settings.bOverride_AutoExposureMaxBrightness = true;
+		Settings.AutoExposureMinBrightness = 0.03f;
+		Settings.AutoExposureMaxBrightness = 8.0f;
+		Settings.bOverride_AutoExposureBias = true;
+		Settings.AutoExposureBias = 1.0f;
 	}
 
 	// A floor, so the stations are not floating in a void.
