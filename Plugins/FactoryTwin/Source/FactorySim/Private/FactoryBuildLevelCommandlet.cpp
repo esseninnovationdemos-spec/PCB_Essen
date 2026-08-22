@@ -73,26 +73,72 @@ namespace LevelBuild
 	struct FLineStopSpec
 	{
 		const TCHAR* DeviceId;
-		double XMetres;
 		EFactoryProductStage StageOnComplete;
 	};
 
+	/**
+	 * Process order. Where each stop sits comes from its instance's layout
+	 * position, not from here -- the packing is computed when the instances are
+	 * seeded, and a second copy of the numbers would only drift from it.
+	 *
+	 * SEMI_STACK is not a stop: it is an 11 by 7 metre staging area standing
+	 * beside the tail of the line, not something a unit passes through.
+	 */
 	const FLineStopSpec LineStops[] = {
-		{ TEXT("RECEIVE_SEMI"),       1.0, EFactoryProductStage::Empty },
-		{ TEXT("HOUSING_ASSEMBLY"),   4.0, EFactoryProductStage::HousingFitted },
-		{ TEXT("PIN_INSERTION"),      7.0, EFactoryProductStage::PinsInserted },
-		// Verification steps fit no new parts; they decide whether what is
-		// already there passes.
-		{ TEXT("PIN_INSPECTION"),     9.5, EFactoryProductStage::PinsInserted },
-		{ TEXT("ASSEMBLY_ROBOT"),    10.5, EFactoryProductStage::BoardFitted },
-		{ TEXT("ICT"),               12.0, EFactoryProductStage::Tested },
-		{ TEXT("FLASH_PROGRAMMING"), 14.5, EFactoryProductStage::Programmed },
-		{ TEXT("KUKA_HANDLER"),      15.5, EFactoryProductStage::LidFitted },
-		{ TEXT("PIN_CHECK"),         17.0, EFactoryProductStage::LidFitted },
-		{ TEXT("EOL_TEST"),          20.0, EFactoryProductStage::FunctionTested },
-		{ TEXT("PACKAGING"),         23.0, EFactoryProductStage::Packed },
-		{ TEXT("SEMI_STACK"),        26.0, EFactoryProductStage::Packed },
+		{ TEXT("RECEIVE_SEMI"),       EFactoryProductStage::Empty },
+		{ TEXT("HOUSING_ASSEMBLY"),   EFactoryProductStage::HousingFitted },
+		{ TEXT("PIN_INSERTION"),      EFactoryProductStage::PinsInserted },
+		// Verification fits no new parts; it decides whether what is already
+		// there passes.
+		{ TEXT("PIN_INSPECTION"),     EFactoryProductStage::PinsInserted },
+		{ TEXT("ASSEMBLY_ROBOT"),     EFactoryProductStage::BoardFitted },
+		{ TEXT("ICT"),                EFactoryProductStage::Tested },
+		{ TEXT("FLASH_PROGRAMMING"),  EFactoryProductStage::Programmed },
+		{ TEXT("KUKA_HANDLER"),       EFactoryProductStage::LidFitted },
+		{ TEXT("PIN_CHECK"),          EFactoryProductStage::LidFitted },
+		{ TEXT("EOL_TEST"),           EFactoryProductStage::FunctionTested },
+		{ TEXT("PACKAGING"),          EFactoryProductStage::Packed },
 	};
+
+	/**
+	 * Instances that are stops on the line but are not placed from a Blueprint.
+	 *
+	 * The KUKA is assembled in C++ from imported link meshes, so it has no entry
+	 * in the station list above and would otherwise be invisible to a lookup
+	 * that only walked that list -- which silently dropped its stop, and with it
+	 * the step that fits the lid.
+	 */
+	const TCHAR* NonBlueprintInstances[] = {
+		TEXT("/Game/FactoryTwin/Instances/I_KukaHandler.I_KukaHandler"),
+	};
+
+	/** Instance asset holding a device's layout, by device id. */
+	const TCHAR* InstanceForDevice(const FString& DeviceId)
+	{
+		for (const FStationSpec& Spec : AssemblyLine)
+		{
+			if (UFactoryMachineInstance* Instance =
+				LoadObject<UFactoryMachineInstance>(nullptr, Spec.InstanceAsset))
+			{
+				if (Instance->DeviceId == DeviceId)
+				{
+					return Spec.InstanceAsset;
+				}
+			}
+		}
+		for (const TCHAR* Asset : NonBlueprintInstances)
+		{
+			if (UFactoryMachineInstance* Instance =
+				LoadObject<UFactoryMachineInstance>(nullptr, Asset))
+			{
+				if (Instance->DeviceId == DeviceId)
+				{
+					return Asset;
+				}
+			}
+		}
+		return nullptr;
+	}
 
 	/** Where a machine sits across the belt, so conveyor is not run through it. */
 	struct FBeltBlocker
@@ -225,6 +271,8 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 	int32 Placed = 0;
 	int32 Skipped = 0;
 	TArray<FBeltBlocker> Blockers;
+	double LineStartX = 0.0;
+	double LineExtentX = 0.0;
 
 	for (const FStationSpec& Spec : AssemblyLine)
 	{
@@ -318,6 +366,19 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 			}
 		}
 
+		// Report what the station actually measures against what its instance
+		// claims. The declared footprints drive both the packing here and the 2D
+		// floor plan, so a claim that does not match the geometry shows up as a
+		// gap on the floor and a wrong box on the plan.
+		{
+			const FBox Box = Station->GetComponentsBoundingBox(true);
+			const FVector Size = Box.GetSize() / FactoryGrid::MetresToCm;
+			UE_LOG(LogFactorySim, Display,
+				TEXT("    %-18s measured %5.2f x %5.2f m   declared %5.2f x %5.2f m"),
+				*Instance->DeviceId, Size.X, Size.Y,
+				Instance->LayoutFootprint.X, Instance->LayoutFootprint.Y);
+		}
+
 		// Machines standing on the belt centreline interrupt it; ones set back
 		// from it (the two robots) serve the line from the side and do not.
 		if (FMath::Abs(Instance->LayoutPosition.Y) < 0.5)
@@ -330,6 +391,27 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		++Placed;
 		UE_LOG(LogFactorySim, Display, TEXT("  placed %-20s at (%.1f, %.1f) m"),
 			*Instance->DeviceId, Instance->LayoutPosition.X, Instance->LayoutPosition.Y);
+	}
+
+	// Extent of the packed line. Computed here rather than where the conveyor is
+	// built, because the floor is laid before that and was being sized from a
+	// still-zero extent -- a 10 m slab under a 21 m line, with the rest of the
+	// grid hanging over nothing.
+	{
+		Blockers.Sort([](const FBeltBlocker& A, const FBeltBlocker& B)
+		{
+			return A.MinX < B.MinX;
+		});
+
+		double MinX = 0.0;
+		double MaxX = 0.0;
+		for (int32 Index = 0; Index < Blockers.Num(); ++Index)
+		{
+			MinX = (Index == 0) ? Blockers[Index].MinX : FMath::Min(MinX, Blockers[Index].MinX);
+			MaxX = FMath::Max(MaxX, Blockers[Index].MaxX);
+		}
+		LineStartX = MinX - 1.5;
+		LineExtentX = MaxX + 1.5;
 	}
 
 	// The KUKA arm, assembled from the imported ROS-Industrial link meshes. It
@@ -487,12 +569,14 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")))
 	{
 		if (AStaticMeshActor* Floor = World->SpawnActor<AStaticMeshActor>(
-			FVector(1300.0, 0.0, -5.0), FRotator::ZeroRotator))
+			FVector((LineStartX + LineExtentX) * 0.5 * FactoryGrid::MetresToCm, -300.0, -5.0),
+			FRotator::ZeroRotator))
 		{
 			Floor->SetMobility(EComponentMobility::Static);
 			Floor->GetStaticMeshComponent()->SetStaticMesh(PlaneMesh);
-			// Plane is 100cm; scale to cover the full line and its margins.
-			Floor->SetActorScale3D(FVector(44.0, 20.0, 1.0));
+			// Plane is 100 cm; cover the packed line plus the staging area beside it.
+			Floor->SetActorScale3D(FVector(
+				FMath::CeilToDouble(LineExtentX - LineStartX) + 8.0, 24.0, 1.0));
 			Floor->SetActorLabel(TEXT("Floor"));
 		}
 	}
@@ -502,13 +586,8 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 	// leave two surfaces fighting at exactly the same height. What is missing is
 	// the stretches in between, which is what gets built here.
 	{
-		Blockers.Sort([](const FBeltBlocker& A, const FBeltBlocker& B)
-		{
-			return A.MinX < B.MinX;
-		});
-
-		const double EntryX = -2.0;
-		const double ExitX = 29.0;
+		const double EntryX = LineStartX;
+		const double ExitX = LineExtentX;
 		// Leave a small air gap so a run does not visually jam into a machine.
 		const double Clearance = 0.15;
 
@@ -593,8 +672,9 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		FVector::ZeroVector, FRotator::ZeroRotator))
 	{
 		Grid->SetActorLabel(TEXT("FloorGrid"));
-		Grid->MinMetres = FVector2D(-4.0, -6.0);
-		Grid->MaxMetres = FVector2D(30.0, 6.0);
+		// Wide enough in -Y to take in the staging area standing beside the line.
+		Grid->MinMetres = FVector2D(FMath::FloorToDouble(LineStartX) - 1.0, -11.0);
+		Grid->MaxMetres = FVector2D(FMath::CeilToDouble(LineExtentX) + 1.0, 5.0);
 		Grid->RebuildGrid();
 	}
 
@@ -604,18 +684,38 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		FVector::ZeroVector, FRotator::ZeroRotator))
 	{
 		Line->SetActorLabel(TEXT("AssemblyLine"));
-		Line->EntryMetres = FVector2D(-2.0, 0.0);
-		Line->ExitMetres = FVector2D(29.0, 0.0);
 		Line->TaktSeconds = 18.0f;
+
+		double FirstX = TNumericLimits<double>::Max();
+		double LastX = TNumericLimits<double>::Lowest();
 
 		for (const FLineStopSpec& Spec : LineStops)
 		{
+			const TCHAR* Asset = InstanceForDevice(Spec.DeviceId);
+			UFactoryMachineInstance* Instance = (Asset != nullptr)
+				? LoadObject<UFactoryMachineInstance>(nullptr, Asset) : nullptr;
+			if (Instance == nullptr)
+			{
+				UE_LOG(LogFactorySim, Warning,
+					TEXT("  no instance for stop '%s'; skipping it"), Spec.DeviceId);
+				continue;
+			}
+
 			FFactoryLineStop Stop;
 			Stop.DeviceId = Spec.DeviceId;
-			Stop.PositionMetres = FVector2D(Spec.XMetres, 0.0);
+			// On the belt centreline even for the machines set back from it: the
+			// robots reach across to the unit, the unit does not detour to them.
+			Stop.PositionMetres = FVector2D(Instance->LayoutPosition.X, 0.0);
 			Stop.StageOnComplete = Spec.StageOnComplete;
 			Line->Stops.Add(Stop);
+
+			FirstX = FMath::Min(FirstX, Stop.PositionMetres.X);
+			LastX = FMath::Max(LastX, Stop.PositionMetres.X);
 		}
+
+		// Enough lead-in and run-off to see a unit arrive and leave.
+		Line->EntryMetres = FVector2D(FirstX - 1.5, 0.0);
+		Line->ExitMetres = FVector2D(LastX + 1.5, 0.0);
 		// The panel that shows and drives this line.
 		if (UClass* HudClass = LoadObject<UClass>(
 			nullptr, TEXT("/Game/UI/W_AssemblyPanel.W_AssemblyPanel_C")))

@@ -2,6 +2,7 @@
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "FactoryMachineArchetype.h"
+#include "FactoryLayoutGrid.h"
 #include "FactoryMachineInstance.h"
 #include "FactorySimTypes.h"
 #include "Misc/PackageName.h"
@@ -387,6 +388,72 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	UFactoryMachineArchetype* ConveyorType = LoadObject<UFactoryMachineArchetype>(
 		nullptr, TEXT("/Game/FactoryTwin/Archetypes/A_Conveyor.A_Conveyor"));
 
+	// Footprints below are measured off the actual station geometry, not
+	// guessed. The guesses were wrong by up to 2 m -- RECEIVE_SEMI was declared
+	// at 2.0 m and is 3 cm wide -- and since the packing reserves each machine
+	// its declared width, every over-claim became a gap of empty belt that
+	// nothing stood in.
+	//
+	// Positions are computed rather than written down so that correcting a
+	// footprint moves the line instead of just disagreeing with it.
+	struct FBeltMachine
+	{
+		const TCHAR* Device;
+		double WidthMetres;
+	};
+
+	// Process order along the belt.
+	const FBeltMachine BeltOrder[] = {
+		{ TEXT("RECEIVE_SEMI"),      0.50 },   // a 3 cm plate; floored so it is reachable
+		{ TEXT("HOUSING_ASSEMBLY"),  1.48 },
+		{ TEXT("PIN_INSERTION"),     1.48 },
+		{ TEXT("PIN_INSPECTION"),    2.10 },
+		{ TEXT("ICT"),               2.10 },
+		{ TEXT("FLASH_PROGRAMMING"), 1.19 },
+		{ TEXT("PIN_CHECK"),         1.19 },
+		{ TEXT("EOL_TEST"),          1.43 },
+		{ TEXT("PACKAGING"),         0.83 },
+	};
+
+	// Gangway between machines. Enough for a short run of conveyor to read as
+	// conveyor, and no more.
+	constexpr double Gangway = 0.6;
+
+	TMap<FString, double> PackedX;
+	TMap<FString, double> PackedHalfWidth;
+	{
+		double Cursor = 0.0;
+		for (const FBeltMachine& Machine : BeltOrder)
+		{
+			const double Half = Machine.WidthMetres * 0.5;
+			// Snap the centre, then push the cursor past where the machine
+			// actually ended up rather than where it would have been unsnapped,
+			// so snapping can never eat the gangway.
+			double Centre = FactoryGrid::SnapMetres(FVector2D(Cursor + Half, 0.0)).X;
+			if (Centre - Half < Cursor)
+			{
+				Centre += FactoryGrid::GetPitchMetres();
+			}
+			PackedX.Add(Machine.Device, Centre);
+			PackedHalfWidth.Add(Machine.Device, Half);
+			Cursor = Centre + Half + Gangway;
+		}
+	}
+
+	// Centre of the gangway between two machines, for the robots that serve the
+	// line from beside it.
+	auto Beside = [&](const TCHAR* Upstream, const TCHAR* Downstream) -> double
+	{
+		const double Left = PackedX[Upstream] + PackedHalfWidth[Upstream];
+		const double Right = PackedX[Downstream] - PackedHalfWidth[Downstream];
+		return FactoryGrid::SnapMetres(FVector2D((Left + Right) * 0.5, 0.0)).X;
+	};
+
+	auto At = [&](const TCHAR* Device) -> FVector2D
+	{
+		return FVector2D(PackedX[Device], 0.0);
+	};
+
 	int64 NextAlias = AssemblyAliasBase;
 
 	auto Make = [&](const FString& AssetName,
@@ -410,7 +477,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	};
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_HousingAssembly"), nullptr,
-		TEXT("HOUSING_ASSEMBLY"), TEXT("HousingAssembly"), { 4.0, 0.0 }, { 2.0, 1.5 }))
+		TEXT("HOUSING_ASSEMBLY"), TEXT("HousingAssembly"), At(TEXT("HOUSING_ASSEMBLY")), { 1.48, 0.99 }))
 	{
 		// Housing fit is an operator task on this line.
 		I->Archetype = LoadObject<UFactoryMachineArchetype>(
@@ -428,7 +495,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_PinInsertion"), PressType,
-		TEXT("PIN_INSERTION"), TEXT("PinInsertion"), { 7.0, 0.0 }, { 1.6, 1.4 }))
+		TEXT("PIN_INSERTION"), TEXT("PinInsertion"), At(TEXT("PIN_INSERTION")), { 1.48, 0.99 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("insertion_force_n"), TEXT("insertion_depth_mm"), TEXT("cycle_time_sec") });
@@ -436,7 +503,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_AssemblyRobot"), RobotType,
-		TEXT("ASSEMBLY_ROBOT"), TEXT("HandlingRobot"), { 10.5, 1.5 }, { 1.2, 1.2 }))
+		TEXT("ASSEMBLY_ROBOT"), TEXT("HandlingRobot"), FVector2D(Beside(TEXT("PIN_INSPECTION"), TEXT("ICT")), 1.5), { 1.40, 0.61 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("tcp_speed_mms"), TEXT("joint_load_pct"), TEXT("payload_kg"),
@@ -445,7 +512,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_InCircuitTest"), IctType,
-		TEXT("ICT"), TEXT("ICT"), { 12.0, 0.0 }, { 1.8, 1.4 }))
+		TEXT("ICT"), TEXT("ICT"), At(TEXT("ICT")), { 2.10, 0.99 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("test_voltage_v"), TEXT("test_current_ma"), TEXT("insulation_mohm"),
@@ -454,7 +521,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_FlashProgramming"), FlashType,
-		TEXT("FLASH_PROGRAMMING"), TEXT("FlashProgramming"), { 14.5, 0.0 }, { 1.4, 1.2 }))
+		TEXT("FLASH_PROGRAMMING"), TEXT("FlashProgramming"), At(TEXT("FLASH_PROGRAMMING")), { 1.19, 0.99 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("flash_throughput_kbs"), TEXT("flash_bytes"), TEXT("cycle_time_sec") });
@@ -462,14 +529,14 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_AssemblyBuffer"), BufferType,
-		TEXT("ASSEMBLY_BUFFER"), TEXT("Buffer"), { 13.0, -3.0 }, { 2.4, 0.8 }))
+		TEXT("ASSEMBLY_BUFFER"), TEXT("Buffer"), FVector2D(PackedX[TEXT("ICT")], -3.0), { 2.40, 0.80 }))
 	{
 		NextAlias = PinAliases(I, NextAlias, { TEXT("occupancy"), TEXT("fill_pct") });
 		Created.Add(I);
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_EndOfLineTest"), EolType,
-		TEXT("EOL_TEST"), TEXT("EndOfLineTest"), { 20.0, 0.0 }, { 1.8, 1.4 }))
+		TEXT("EOL_TEST"), TEXT("EndOfLineTest"), At(TEXT("EOL_TEST")), { 1.43, 1.78 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("supply_current_ma"), TEXT("boot_time_ms"), TEXT("cycle_time_sec") });
@@ -477,7 +544,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_Packaging"), PackType,
-		TEXT("PACKAGING"), TEXT("Packaging"), { 23.0, 0.0 }, { 2.2, 1.6 }))
+		TEXT("PACKAGING"), TEXT("Packaging"), At(TEXT("PACKAGING")), { 0.83, 0.83 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("units_in_carton"), TEXT("seal_temp_c"), TEXT("cycle_time_sec") });
@@ -488,7 +555,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	// Same RoboticArm archetype as the UR5 handler, which is the point: one
 	// archetype, two physically different robots.
 	if (UFactoryMachineInstance* I = Make(TEXT("I_KukaHandler"), RobotType,
-		TEXT("KUKA_HANDLER"), TEXT("KukaHandler"), { 15.5, 2.0 }, { 1.1, 1.1 }))
+		TEXT("KUKA_HANDLER"), TEXT("KukaHandler"), FVector2D(Beside(TEXT("FLASH_PROGRAMMING"), TEXT("PIN_CHECK")), 2.0), { 1.10, 1.10 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("tcp_speed_mms"), TEXT("joint_load_pct"), TEXT("payload_kg"),
@@ -499,14 +566,14 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	// Stations the project already had and the line was not using. Appended
 	// here for the same alias-stability reason as the conveyor below.
 	if (UFactoryMachineInstance* I = Make(TEXT("I_ReceiveSemi"), BufferType,
-		TEXT("RECEIVE_SEMI"), TEXT("ReceiveSemi"), { 1.0, 0.0 }, { 2.0, 1.5 }))
+		TEXT("RECEIVE_SEMI"), TEXT("ReceiveSemi"), At(TEXT("RECEIVE_SEMI")), { 0.50, 0.64 }))
 	{
 		NextAlias = PinAliases(I, NextAlias, { TEXT("occupancy"), TEXT("fill_pct") });
 		Created.Add(I);
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_PinInspection"), nullptr,
-		TEXT("PIN_INSPECTION"), TEXT("PinInspection"), { 9.5, 0.0 }, { 1.6, 1.4 }))
+		TEXT("PIN_INSPECTION"), TEXT("PinInspection"), At(TEXT("PIN_INSPECTION")), { 2.10, 0.99 }))
 	{
 		// The station is an operator bench -- it ships with a seat -- so it runs
 		// on the manual archetype rather than the vision one, with the same
@@ -519,14 +586,14 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_PinCheck"), VisionType,
-		TEXT("PIN_CHECK"), TEXT("PinCheck"), { 17.0, 0.0 }, { 1.6, 1.4 }))
+		TEXT("PIN_CHECK"), TEXT("PinCheck"), At(TEXT("PIN_CHECK")), { 1.19, 0.99 }))
 	{
 		NextAlias = PinAliases(I, NextAlias, { TEXT("cycle_time_sec") });
 		Created.Add(I);
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_SemiStack"), BufferType,
-		TEXT("SEMI_STACK"), TEXT("SemiStack"), { 26.0, 0.0 }, { 2.0, 1.5 }))
+		TEXT("SEMI_STACK"), TEXT("SemiStack"), FVector2D(PackedX[TEXT("PACKAGING")], -6.0), { 10.95, 7.20 }))
 	{
 		NextAlias = PinAliases(I, NextAlias, { TEXT("occupancy"), TEXT("fill_pct") });
 		Created.Add(I);
@@ -536,7 +603,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	// new device anywhere earlier would renumber everything after it and break
 	// the downstream mapping.
 	if (UFactoryMachineInstance* I = Make(TEXT("I_AssemblyConveyor"), ConveyorType,
-		TEXT("ASSEMBLY_CONVEYOR"), TEXT("Conveyor"), { 13.0, 0.0 }, { 28.0, 0.8 }))
+		TEXT("ASSEMBLY_CONVEYOR"), TEXT("Conveyor"), FVector2D(PackedX[TEXT("ICT")], 0.0), { 22.0, 0.80 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("belt_speed"), TEXT("motor_temp"), TEXT("rpm"), TEXT("torque") });
