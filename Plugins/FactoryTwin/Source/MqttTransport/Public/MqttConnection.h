@@ -127,6 +127,17 @@ private:
 
 	double LastSendTime = 0.0;
 	double LastReceiveTime = 0.0;
+
+	/**
+	 * Set while a PINGREQ is waiting for its PINGRESP.
+	 *
+	 * A dead link can only be told apart from an idle one by asking and getting
+	 * no answer. Inbound silence on its own proves nothing: a publisher at QoS 0
+	 * is owed no reply, so it can be perfectly healthy and hear nothing for as
+	 * long as it likes.
+	 */
+	bool bPingOutstanding = false;
+	double PingSentTime = 0.0;
 	/** Backoff for the next reconnect attempt, grows on each consecutive failure. */
 	float CurrentReconnectDelay = 0.0f;
 

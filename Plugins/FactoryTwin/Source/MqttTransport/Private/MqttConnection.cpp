@@ -135,23 +135,38 @@ uint32 FMqttConnection::Run()
 
 			if (Options.KeepAliveSeconds > 0)
 			{
-				// Ping at half the keepalive so we are comfortably inside the
-				// broker's 1.5x grace window.
-				const double PingAfter = Options.KeepAliveSeconds * 0.5;
-				if (Now - LastSendTime >= PingAfter)
+				// Half the keepalive keeps us comfortably inside the broker's
+				// 1.5x grace window.
+				const double Quiet = Options.KeepAliveSeconds * 0.5;
+
+				// Ping when outbound has gone quiet, which is what the broker
+				// watches -- and also when inbound has, which is the only way to
+				// learn the link is dead. A publisher at QoS 0 gets nothing back,
+				// so without soliciting a reply there is nothing to time out on.
+				const bool bOutboundQuiet = (Now - LastSendTime) >= Quiet;
+				const bool bInboundQuiet = (Now - LastReceiveTime) >= Quiet;
+
+				if (!bPingOutstanding && (bOutboundQuiet || bInboundQuiet))
 				{
 					if (!SendRaw(MqttPacket::BuildPingReq()))
 					{
 						break;
 					}
+					bPingOutstanding = true;
+					PingSentTime = Now;
 				}
 
-				// No traffic at all for 2x keepalive means the link is dead even
-				// if the socket has not reported an error yet.
-				const double DeadAfter = Options.KeepAliveSeconds * 2.0;
-				if (Now - LastReceiveTime >= DeadAfter)
+				// Dead only when a ping we actually sent goes unanswered.
+				// Declaring death on inbound silence alone tore down healthy
+				// connections every two minutes: the machines publish constantly,
+				// so outbound was never quiet and no ping was ever sent, while
+				// inbound stayed silent because QoS 0 publishes are not
+				// acknowledged. The session dropped and reconnected on a loop.
+				if (bPingOutstanding && (Now - PingSentTime) >= Options.KeepAliveSeconds)
 				{
-					UE_LOG(LogMqttTransport, Warning, TEXT("MQTT keepalive timeout"));
+					UE_LOG(LogMqttTransport, Warning,
+						TEXT("MQTT keepalive timeout: no PINGRESP within %ds"),
+						Options.KeepAliveSeconds);
 					break;
 				}
 			}
@@ -272,6 +287,8 @@ bool FMqttConnection::EstablishSession()
 	// Wait for CONNACK before declaring the session up.
 	const double Deadline = FPlatformTime::Seconds() + 10.0;
 	LastReceiveTime = FPlatformTime::Seconds();
+	// A ping from a previous session must not count against this one.
+	bPingOutstanding = false;
 
 	while (!bStopRequested && FPlatformTime::Seconds() < Deadline)
 	{
@@ -502,8 +519,12 @@ void FMqttConnection::HandlePacket(
 		break;
 	}
 
-	case EMqttPacketType::UnsubAck:
 	case EMqttPacketType::PingResp:
+		// The link is proven alive; stop counting against it.
+		bPingOutstanding = false;
+		break;
+
+	case EMqttPacketType::UnsubAck:
 		break;
 
 	default:
