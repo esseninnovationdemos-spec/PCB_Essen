@@ -374,6 +374,36 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 
 	// Re-seeding incrementally skips archetypes that already exist, so pick up
 	// the ones on disk before wiring instances to them.
+	UFactoryMachineArchetype* BenchType =
+		CreateAsset<UFactoryMachineArchetype>(ArchetypeFolder, TEXT("A_OperatorBench"), bForce);
+	if (BenchType != nullptr)
+	{
+		BenchType->ArchetypeName = TEXT("OperatorBench");
+		BenchType->Description = NSLOCTEXT("FactoryTwin", "BenchDesc",
+			"A bench worked by a person rather than a machine. Distinct from the generic "
+			"manual station in that its pace is human: cycle time spreads much wider than "
+			"any automated step, it drifts across a shift rather than holding a set point, "
+			"and the bench is idle whenever nobody is stood at it. Pair it with an operator "
+			"so the floor shows what the tag says.");
+		BenchType->StateModel = EFactoryStateModel::Manual;
+		BenchType->DefaultTickIntervalSeconds = 0.5f;
+
+		// A person's pace varies far more than a servo's, and slows as a shift
+		// wears on -- which is the point of measuring a manual step at all.
+		FFactoryMetricDefinition Cycle =
+			MakeCycleTime(TEXT("cycle_time_sec"), { 8.0, 16.0 }, { 4.0, 45.0 });
+		Cycle.Fluctuation.bEnabled = true;
+		Cycle.Fluctuation.NoisePercent = 12.0;
+		Cycle.Drift.bEnabled = true;
+		Cycle.Drift.RatePerHour = 1.5;
+		Cycle.Drift.MaxDrift = 4.0;
+		Cycle.Drift.bResetOnIdle = true;
+
+		BenchType->Metrics = { Cycle };
+		Created.Add(BenchType);
+	}
+	BenchType = Resolve(BenchType, TEXT("A_OperatorBench"));
+
 	PressType = Resolve(PressType, TEXT("A_PressInsertion"));
 	IctType = Resolve(IctType, TEXT("A_ElectricalTest"));
 	FlashType = Resolve(FlashType, TEXT("A_Programming"));

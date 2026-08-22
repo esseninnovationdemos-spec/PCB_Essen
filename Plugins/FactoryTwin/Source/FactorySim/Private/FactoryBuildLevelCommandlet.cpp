@@ -14,7 +14,9 @@
 #include "FactoryMachineComponent.h"
 #include "FactoryLayoutGrid.h"
 #include "FactoryMachineInstance.h"
+#include "Animation/AnimSequence.h"
 #include "FactoryConveyor.h"
+#include "FactoryOperatorStation.h"
 #include "FactoryProductionLine.h"
 #include "FactoryShapeMaterials.h"
 #include "FactoryRobotArm.h"
@@ -665,6 +667,62 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		UE_LOG(LogFactorySim, Display,
 			TEXT("  conveyor: %d run(s) between %d machine(s) on the belt"),
 			RunIndex, Blockers.Num());
+	}
+
+	// Operators at the benches. Only the manual stations get one: an automated
+	// cell with a person stood inside it would be telling the opposite of the
+	// truth about how the step is done.
+	{
+		struct FOperatorSpec
+		{
+			const TCHAR* Device;
+			bool bSeated;
+		};
+
+		const FOperatorSpec Operators[] = {
+			{ TEXT("HOUSING_ASSEMBLY"), false },
+			// This bench ships with a seat, so its operator uses it.
+			{ TEXT("PIN_INSPECTION"), true },
+		};
+
+		UAnimSequence* Sitting = LoadObject<UAnimSequence>(
+			nullptr, TEXT("/Game/Human/Human_Sitting_Anim.Human_Sitting_Anim"));
+
+		int32 Placed_Operators = 0;
+		for (const FOperatorSpec& Spec : Operators)
+		{
+			const TCHAR* Asset = InstanceForDevice(Spec.Device);
+			UFactoryMachineInstance* Instance = (Asset != nullptr)
+				? LoadObject<UFactoryMachineInstance>(nullptr, Asset) : nullptr;
+			if (Instance == nullptr)
+			{
+				continue;
+			}
+
+			FActorSpawnParameters OperatorParams;
+			OperatorParams.SpawnCollisionHandlingOverride =
+				ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+			// A metre in front of the bench, turned to face it.
+			const FVector Where = FactoryGrid::MetresToWorld(
+				FVector2D(Instance->LayoutPosition.X, Instance->LayoutPosition.Y - 1.0));
+
+			if (AFactoryOperatorStation* Worker = World->SpawnActor<AFactoryOperatorStation>(
+				AFactoryOperatorStation::StaticClass(),
+				FTransform(FRotator(0.0, 90.0, 0.0), Where), OperatorParams))
+			{
+				Worker->ServedDeviceId = Spec.Device;
+				if (Spec.bSeated && Sitting != nullptr)
+				{
+					Worker->RestingAnimation = Sitting;
+				}
+				Worker->SetActorLabel(FString::Printf(TEXT("Operator_%s"), Spec.Device));
+				++Placed_Operators;
+			}
+		}
+
+		UE_LOG(LogFactorySim, Display,
+			TEXT("  operators: %d at the manual benches"), Placed_Operators);
 	}
 
 	// Somewhere to stand. Without a player start the pawn spawns at the origin,
