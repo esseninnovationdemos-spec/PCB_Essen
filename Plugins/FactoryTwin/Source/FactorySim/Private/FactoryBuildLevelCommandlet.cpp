@@ -49,6 +49,15 @@ namespace LevelBuild
 		  TEXT("/Game/FinalAssembly-Workcenter/EndOfLine/EndOfLine_Inspection_BP.EndOfLine_Inspection_BP_C") },
 		{ TEXT("/Game/FactoryTwin/Instances/I_Packaging.I_Packaging"),
 		  TEXT("/Game/FinalAssembly-Workcenter/Packaging/Packaging_BP.Packaging_BP_C") },
+		// Stations the project ships that the line was not using.
+		{ TEXT("/Game/FactoryTwin/Instances/I_ReceiveSemi.I_ReceiveSemi"),
+		  TEXT("/Game/FinalAssembly-Workcenter/ReceiveSemi/ReceiveSemi_BP.ReceiveSemi_BP_C") },
+		{ TEXT("/Game/FactoryTwin/Instances/I_PinInspection.I_PinInspection"),
+		  TEXT("/Game/FinalAssembly-Workcenter/PinVerification/PinInsertionCheck_BP.PinInsertionCheck_BP_C") },
+		{ TEXT("/Game/FactoryTwin/Instances/I_PinCheck.I_PinCheck"),
+		  TEXT("/Game/FinalAssembly-Workcenter/PinCheck(AfterAssembly)/PinCheckAfterAssembly_BP.PinCheckAfterAssembly_BP_C") },
+		{ TEXT("/Game/FactoryTwin/Instances/I_SemiStack.I_SemiStack"),
+		  TEXT("/Game/FinalAssembly-Workcenter/CreatedSemi/StackSemiFinished_BP.StackSemiFinished_BP_C") },
 	};
 
 	/**
@@ -69,17 +78,20 @@ namespace LevelBuild
 	};
 
 	const FLineStopSpec LineStops[] = {
-		{ TEXT("HOUSING_ASSEMBLY"),   0.0, EFactoryProductStage::HousingFitted },
-		{ TEXT("PIN_INSERTION"),      3.5, EFactoryProductStage::PinsInserted },
-		{ TEXT("ASSEMBLY_ROBOT"),     7.0, EFactoryProductStage::BoardFitted },
-		{ TEXT("ICT"),               10.5, EFactoryProductStage::Tested },
-		{ TEXT("FLASH_PROGRAMMING"), 14.0, EFactoryProductStage::Programmed },
-		// No machine placed for the buffer, so this is a plain holding position
-		// on the belt -- which is what a buffer is.
-		{ TEXT("ASSEMBLY_BUFFER"),   17.5, EFactoryProductStage::Programmed },
-		{ TEXT("KUKA_HANDLER"),      21.0, EFactoryProductStage::LidFitted },
-		{ TEXT("EOL_TEST"),          24.5, EFactoryProductStage::FunctionTested },
-		{ TEXT("PACKAGING"),         28.0, EFactoryProductStage::Packed },
+		{ TEXT("RECEIVE_SEMI"),       1.0, EFactoryProductStage::Empty },
+		{ TEXT("HOUSING_ASSEMBLY"),   4.0, EFactoryProductStage::HousingFitted },
+		{ TEXT("PIN_INSERTION"),      7.0, EFactoryProductStage::PinsInserted },
+		// Verification steps fit no new parts; they decide whether what is
+		// already there passes.
+		{ TEXT("PIN_INSPECTION"),     9.5, EFactoryProductStage::PinsInserted },
+		{ TEXT("ASSEMBLY_ROBOT"),    10.5, EFactoryProductStage::BoardFitted },
+		{ TEXT("ICT"),               12.0, EFactoryProductStage::Tested },
+		{ TEXT("FLASH_PROGRAMMING"), 14.5, EFactoryProductStage::Programmed },
+		{ TEXT("KUKA_HANDLER"),      15.5, EFactoryProductStage::LidFitted },
+		{ TEXT("PIN_CHECK"),         17.0, EFactoryProductStage::LidFitted },
+		{ TEXT("EOL_TEST"),          20.0, EFactoryProductStage::FunctionTested },
+		{ TEXT("PACKAGING"),         23.0, EFactoryProductStage::Packed },
+		{ TEXT("SEMI_STACK"),        26.0, EFactoryProductStage::Packed },
 	};
 
 	/** Where a machine sits across the belt, so conveyor is not run through it. */
@@ -421,6 +433,13 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 	{
 		Sun->SetActorLabel(TEXT("Sun"));
 		Sun->GetComponent()->SetIntensity(10.0f);
+
+		// Cascaded shadows default to covering 200 m. The line and its floor fit
+		// in 60, and the cascades are spread across whatever distance they are
+		// given, so the default was spending most of its shadow resolution on
+		// empty ground beyond the factory.
+		Sun->GetComponent()->DynamicShadowDistanceMovableLight = 6000.0f;
+		Sun->GetComponent()->DynamicShadowCascades = 3;
 	}
 
 	// The sky light captures the atmosphere in real time, so there has to be an
@@ -433,7 +452,13 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 	{
 		Sky->SetActorLabel(TEXT("SkyLight"));
 		Sky->GetLightComponent()->SetIntensity(1.0f);
-		Sky->GetLightComponent()->bRealTimeCapture = true;
+
+		// Captured once rather than every frame. Real-time capture re-renders the
+		// sky into a cubemap continuously, which is worth paying for when the sky
+		// changes -- a day/night cycle, moving cloud. Nothing here moves, so it
+		// was re-rendering an identical sky every frame for the whole session.
+		Sky->GetLightComponent()->bRealTimeCapture = false;
+		Sky->GetLightComponent()->SourceType = ESkyLightSourceType::SLS_CapturedScene;
 	}
 
 	// Bound the auto exposure rather than pin it. An earlier pass let it run
@@ -462,12 +487,12 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")))
 	{
 		if (AStaticMeshActor* Floor = World->SpawnActor<AStaticMeshActor>(
-			FVector(1400.0, 0.0, -5.0), FRotator::ZeroRotator))
+			FVector(1300.0, 0.0, -5.0), FRotator::ZeroRotator))
 		{
 			Floor->SetMobility(EComponentMobility::Static);
 			Floor->GetStaticMeshComponent()->SetStaticMesh(PlaneMesh);
 			// Plane is 100cm; scale to cover the full line and its margins.
-			Floor->SetActorScale3D(FVector(48.0, 20.0, 1.0));
+			Floor->SetActorScale3D(FVector(44.0, 20.0, 1.0));
 			Floor->SetActorLabel(TEXT("Floor"));
 		}
 	}
@@ -482,8 +507,8 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 			return A.MinX < B.MinX;
 		});
 
-		const double EntryX = -3.0;
-		const double ExitX = 31.0;
+		const double EntryX = -2.0;
+		const double ExitX = 29.0;
 		// Leave a small air gap so a run does not visually jam into a machine.
 		const double Clearance = 0.15;
 
@@ -569,7 +594,7 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 	{
 		Grid->SetActorLabel(TEXT("FloorGrid"));
 		Grid->MinMetres = FVector2D(-4.0, -6.0);
-		Grid->MaxMetres = FVector2D(32.0, 6.0);
+		Grid->MaxMetres = FVector2D(30.0, 6.0);
 		Grid->RebuildGrid();
 	}
 
@@ -579,8 +604,8 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		FVector::ZeroVector, FRotator::ZeroRotator))
 	{
 		Line->SetActorLabel(TEXT("AssemblyLine"));
-		Line->EntryMetres = FVector2D(-3.0, 0.0);
-		Line->ExitMetres = FVector2D(31.0, 0.0);
+		Line->EntryMetres = FVector2D(-2.0, 0.0);
+		Line->ExitMetres = FVector2D(29.0, 0.0);
 		Line->TaktSeconds = 18.0f;
 
 		for (const FLineStopSpec& Spec : LineStops)

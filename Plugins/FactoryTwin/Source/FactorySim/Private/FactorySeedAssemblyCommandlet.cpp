@@ -382,6 +382,8 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	BufferType = Resolve(BufferType, TEXT("A_Buffer"));
 	// The conveyor archetype is shared with the SMT line; this line only adds
 	// a placement of it.
+	UFactoryMachineArchetype* VisionType = LoadObject<UFactoryMachineArchetype>(
+		nullptr, TEXT("/Game/FactoryTwin/Archetypes/A_VisionInspection.A_VisionInspection"));
 	UFactoryMachineArchetype* ConveyorType = LoadObject<UFactoryMachineArchetype>(
 		nullptr, TEXT("/Game/FactoryTwin/Archetypes/A_Conveyor.A_Conveyor"));
 
@@ -408,7 +410,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	};
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_HousingAssembly"), nullptr,
-		TEXT("HOUSING_ASSEMBLY"), TEXT("HousingAssembly"), { 0.0, 0.0 }, { 2.0, 1.5 }))
+		TEXT("HOUSING_ASSEMBLY"), TEXT("HousingAssembly"), { 4.0, 0.0 }, { 2.0, 1.5 }))
 	{
 		// Housing fit is an operator task on this line.
 		I->Archetype = LoadObject<UFactoryMachineArchetype>(
@@ -426,7 +428,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_PinInsertion"), PressType,
-		TEXT("PIN_INSERTION"), TEXT("PinInsertion"), { 3.5, 0.0 }, { 1.6, 1.4 }))
+		TEXT("PIN_INSERTION"), TEXT("PinInsertion"), { 7.0, 0.0 }, { 1.6, 1.4 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("insertion_force_n"), TEXT("insertion_depth_mm"), TEXT("cycle_time_sec") });
@@ -434,7 +436,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_AssemblyRobot"), RobotType,
-		TEXT("ASSEMBLY_ROBOT"), TEXT("HandlingRobot"), { 7.0, 1.5 }, { 1.2, 1.2 }))
+		TEXT("ASSEMBLY_ROBOT"), TEXT("HandlingRobot"), { 10.5, 1.5 }, { 1.2, 1.2 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("tcp_speed_mms"), TEXT("joint_load_pct"), TEXT("payload_kg"),
@@ -443,7 +445,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_InCircuitTest"), IctType,
-		TEXT("ICT"), TEXT("ICT"), { 10.5, 0.0 }, { 1.8, 1.4 }))
+		TEXT("ICT"), TEXT("ICT"), { 12.0, 0.0 }, { 1.8, 1.4 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("test_voltage_v"), TEXT("test_current_ma"), TEXT("insulation_mohm"),
@@ -452,7 +454,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_FlashProgramming"), FlashType,
-		TEXT("FLASH_PROGRAMMING"), TEXT("FlashProgramming"), { 14.0, 0.0 }, { 1.4, 1.2 }))
+		TEXT("FLASH_PROGRAMMING"), TEXT("FlashProgramming"), { 14.5, 0.0 }, { 1.4, 1.2 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("flash_throughput_kbs"), TEXT("flash_bytes"), TEXT("cycle_time_sec") });
@@ -460,14 +462,14 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_AssemblyBuffer"), BufferType,
-		TEXT("ASSEMBLY_BUFFER"), TEXT("Buffer"), { 17.5, 0.0 }, { 2.4, 0.8 }))
+		TEXT("ASSEMBLY_BUFFER"), TEXT("Buffer"), { 13.0, -3.0 }, { 2.4, 0.8 }))
 	{
 		NextAlias = PinAliases(I, NextAlias, { TEXT("occupancy"), TEXT("fill_pct") });
 		Created.Add(I);
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_EndOfLineTest"), EolType,
-		TEXT("EOL_TEST"), TEXT("EndOfLineTest"), { 24.5, 0.0 }, { 1.8, 1.4 }))
+		TEXT("EOL_TEST"), TEXT("EndOfLineTest"), { 20.0, 0.0 }, { 1.8, 1.4 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("supply_current_ma"), TEXT("boot_time_ms"), TEXT("cycle_time_sec") });
@@ -475,7 +477,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_Packaging"), PackType,
-		TEXT("PACKAGING"), TEXT("Packaging"), { 28.0, 0.0 }, { 2.2, 1.6 }))
+		TEXT("PACKAGING"), TEXT("Packaging"), { 23.0, 0.0 }, { 2.2, 1.6 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("units_in_carton"), TEXT("seal_temp_c"), TEXT("cycle_time_sec") });
@@ -486,7 +488,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	// Same RoboticArm archetype as the UR5 handler, which is the point: one
 	// archetype, two physically different robots.
 	if (UFactoryMachineInstance* I = Make(TEXT("I_KukaHandler"), RobotType,
-		TEXT("KUKA_HANDLER"), TEXT("KukaHandler"), { 21.0, 2.0 }, { 1.1, 1.1 }))
+		TEXT("KUKA_HANDLER"), TEXT("KukaHandler"), { 15.5, 2.0 }, { 1.1, 1.1 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("tcp_speed_mms"), TEXT("joint_load_pct"), TEXT("payload_kg"),
@@ -494,11 +496,47 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 		Created.Add(I);
 	}
 
+	// Stations the project already had and the line was not using. Appended
+	// here for the same alias-stability reason as the conveyor below.
+	if (UFactoryMachineInstance* I = Make(TEXT("I_ReceiveSemi"), BufferType,
+		TEXT("RECEIVE_SEMI"), TEXT("ReceiveSemi"), { 1.0, 0.0 }, { 2.0, 1.5 }))
+	{
+		NextAlias = PinAliases(I, NextAlias, { TEXT("occupancy"), TEXT("fill_pct") });
+		Created.Add(I);
+	}
+
+	if (UFactoryMachineInstance* I = Make(TEXT("I_PinInspection"), nullptr,
+		TEXT("PIN_INSPECTION"), TEXT("PinInspection"), { 9.5, 0.0 }, { 1.6, 1.4 }))
+	{
+		// The station is an operator bench -- it ships with a seat -- so it runs
+		// on the manual archetype rather than the vision one, with the same
+		// override the housing bench needs to keep the line flowing.
+		I->Archetype = LoadObject<UFactoryMachineArchetype>(
+			nullptr, TEXT("/Game/FactoryTwin/Archetypes/A_ManualStation.A_ManualStation"));
+		I->NominalOverrides.Add(TEXT("cycle_time_sec"), FFactoryRange(6.0, 11.0));
+		NextAlias = PinAliases(I, NextAlias, { TEXT("cycle_time_sec") });
+		Created.Add(I);
+	}
+
+	if (UFactoryMachineInstance* I = Make(TEXT("I_PinCheck"), VisionType,
+		TEXT("PIN_CHECK"), TEXT("PinCheck"), { 17.0, 0.0 }, { 1.6, 1.4 }))
+	{
+		NextAlias = PinAliases(I, NextAlias, { TEXT("cycle_time_sec") });
+		Created.Add(I);
+	}
+
+	if (UFactoryMachineInstance* I = Make(TEXT("I_SemiStack"), BufferType,
+		TEXT("SEMI_STACK"), TEXT("SemiStack"), { 26.0, 0.0 }, { 2.0, 1.5 }))
+	{
+		NextAlias = PinAliases(I, NextAlias, { TEXT("occupancy"), TEXT("fill_pct") });
+		Created.Add(I);
+	}
+
 	// Appended last on purpose: aliases are handed out in creation order, so a
 	// new device anywhere earlier would renumber everything after it and break
 	// the downstream mapping.
 	if (UFactoryMachineInstance* I = Make(TEXT("I_AssemblyConveyor"), ConveyorType,
-		TEXT("ASSEMBLY_CONVEYOR"), TEXT("Conveyor"), { 14.0, 0.0 }, { 28.0, 0.8 }))
+		TEXT("ASSEMBLY_CONVEYOR"), TEXT("Conveyor"), { 13.0, 0.0 }, { 28.0, 0.8 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("belt_speed"), TEXT("motor_temp"), TEXT("rpm"), TEXT("torque") });
