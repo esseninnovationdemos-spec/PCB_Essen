@@ -16,8 +16,18 @@ struct FFactoryMetricRuntime
 {
 	GENERATED_BODY()
 
-	/** Last emitted value, used as the start point for ramps. */
+	/** Last emitted value. */
 	double CurrentValue = 0.0;
+
+	/**
+	 * Value held when the current state was entered, and the point a Warmup or
+	 * Cooldown ramp interpolates from.
+	 *
+	 * Ramping from a fixed nominal or idle value instead would make the metric
+	 * jump the moment the state changed -- an oven that faulted at its fault
+	 * value would snap to the middle of its nominal band before starting to cool.
+	 */
+	double RampStartValue = 0.0;
 
 	/** Accumulated wear offset. */
 	double Drift = 0.0;
@@ -148,6 +158,16 @@ private:
 	UPROPERTY(Transient)
 	EFactoryMachineState State = EFactoryMachineState::Idle;
 
+	/**
+	 * Archetype metrics plus this instance's additions, resolved once at
+	 * BeginPlay.
+	 *
+	 * Cached because the definition list is immutable once play starts, and
+	 * rebuilding it per tick meant deep-copying FString-bearing structs for
+	 * every machine, every frame.
+	 */
+	TArray<FFactoryMetricDefinition> EffectiveMetrics;
+
 	/** Per-metric runtime, keyed by metric name. */
 	TMap<FString, FFactoryMetricRuntime> MetricRuntime;
 
@@ -171,6 +191,11 @@ private:
 
 	FString LastInspectionResult;
 	int32 FailCounter = 0;
+	/** Set once a result is reported, so CompleteCycle does not overwrite it. */
+	bool bInspectionReportedThisCycle = false;
+
+	/** True between StartCycle and CompleteCycle; guards stale cycle times. */
+	bool bCycleInProgress = false;
 
 	bool bRegistered = false;
 };

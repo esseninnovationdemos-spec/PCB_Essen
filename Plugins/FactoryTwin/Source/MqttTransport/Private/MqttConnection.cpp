@@ -247,7 +247,14 @@ bool FMqttConnection::EstablishSession()
 	}
 
 	ReceiveBuffer.Reset();
-	InFlight.Reset();
+
+	// Let the owner refresh the will before every CONNECT. Sparkplug needs a new
+	// bdSeq per MQTT session, and the will is registered at connect time, so a
+	// payload captured once would go stale the first time we reconnected.
+	if (WillPayloadProvider.IsBound())
+	{
+		Options.Will.Payload = WillPayloadProvider.Execute();
+	}
 
 	// The will rides on this packet; that is the whole point of the module.
 	if (!SendRaw(MqttPacket::BuildConnect(Options)))
@@ -277,6 +284,7 @@ bool FMqttConnection::EstablishSession()
 		if (bSessionActive)
 		{
 			State.store(EMqttConnectionState::Connected, std::memory_order_relaxed);
+			ResendInFlight();
 			return true;
 		}
 	}
@@ -448,6 +456,7 @@ void FMqttConnection::HandlePacket(
 		uint16 PacketId = 0;
 		if (MqttPacket::ParseAck(Body, PacketId))
 		{
+			FScopeLock Lock(&InFlightLock);
 			InFlight.Remove(PacketId);
 		}
 		break;
@@ -527,6 +536,34 @@ bool FMqttConnection::SendRaw(const TArray<uint8>& Bytes)
 	return true;
 }
 
+void FMqttConnection::ResendInFlight()
+{
+	TArray<TArray<uint8>> Pending;
+	{
+		FScopeLock Lock(&InFlightLock);
+		InFlight.GenerateValueArray(Pending);
+	}
+
+	if (Pending.Num() == 0)
+	{
+		return;
+	}
+
+	UE_LOG(LogMqttTransport, Log,
+		TEXT("Resending %d unacknowledged message(s) after reconnect"), Pending.Num());
+
+	for (TArray<uint8>& Frame : Pending)
+	{
+		// Set the DUP flag so the broker knows this is a redelivery. It lives in
+		// bit 3 of the fixed header, which is the first byte of the frame.
+		if (Frame.Num() > 0)
+		{
+			Frame[0] |= 0x08;
+		}
+		EnqueueRaw(MoveTemp(Frame));
+	}
+}
+
 void FMqttConnection::EnqueueRaw(TArray<uint8>&& Bytes)
 {
 	OutboundQueue.Enqueue(MoveTemp(Bytes));
@@ -561,7 +598,19 @@ bool FMqttConnection::Publish(
 	}
 
 	const uint16 PacketId = (QoS == EMqttQoS::AtMostOnce) ? 0 : NextPacketId();
-	EnqueueRaw(MqttPacket::BuildPublish(Topic, Payload, QoS, bRetain, PacketId));
+	TArray<uint8> Frame = MqttPacket::BuildPublish(Topic, Payload, QoS, bRetain, PacketId);
+
+	if (QoS != EMqttQoS::AtMostOnce)
+	{
+		// Retain QoS>0 frames until the broker acknowledges them, so a drop
+		// between PUBLISH and PUBACK can be recovered on reconnect. Without this
+		// a Sparkplug birth certificate lost mid-handshake would never be
+		// resent, leaving consumers with no alias map for that device.
+		FScopeLock Lock(&InFlightLock);
+		InFlight.Add(PacketId, Frame);
+	}
+
+	EnqueueRaw(MoveTemp(Frame));
 	return true;
 }
 

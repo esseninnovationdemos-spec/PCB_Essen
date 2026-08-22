@@ -5,6 +5,8 @@
 #include "SparkplugTypes.h"
 #include "UObject/Object.h"
 
+#include <atomic>
+
 #include "SparkplugEdgeNode.generated.h"
 
 class UMqttTransportClient;
@@ -126,7 +128,7 @@ public:
 
 	/** Birth/death sequence for this session, matching NBIRTH and NDEATH. */
 	UFUNCTION(BlueprintPure, Category = "Sparkplug")
-	int64 GetBirthDeathSequence() const { return BirthDeathSequence; }
+	int64 GetBirthDeathSequence() const { return BirthDeathSequence.load(std::memory_order_relaxed); }
 
 	/** Builds a topic for this node, e.g. spBv1.0/SMT_Line/DDATA/Cluj/REFLOW_OVEN. */
 	UFUNCTION(BlueprintPure, Category = "Sparkplug")
@@ -150,6 +152,9 @@ private:
 	uint8 NextSequence();
 
 	TArray<uint8> BuildDeathPayload() const;
+
+	/** Bumps bdSeq and builds the will. Called by the transport before each CONNECT. */
+	TArray<uint8> BuildSessionDeathPayload();
 	void PublishNodeBirth();
 	void PublishDeviceBirth(const FString& DeviceId);
 	bool PublishPayload(
@@ -169,6 +174,7 @@ private:
 	TArray<FString> DeviceOrder;
 
 	int32 Sequence = 0;
-	int64 BirthDeathSequence = 0;
+	/** Atomic: bumped on the transport worker, read when NBIRTH is built. */
+	std::atomic<int64> BirthDeathSequence{ 0 };
 	bool bOnline = false;
 };

@@ -14,8 +14,22 @@ void UMqttTransportClient::Connect(const FMqttConnectionOptions& InOptions)
 
 	Options = InOptions;
 	Connection = FMqttConnection::Create(Options);
+	if (WillPayloadProvider.IsBound())
+	{
+		Connection->SetWillPayloadProvider(WillPayloadProvider);
+	}
 	BindConnectionDelegates();
 	Connection->Open();
+}
+
+void UMqttTransportClient::SetWillPayloadProvider(const FMqttWillPayloadProvider& Provider)
+{
+	WillPayloadProvider = Provider;
+	// Allow installing it after Connect too, so ordering is not a trap.
+	if (Connection.IsValid())
+	{
+		Connection->SetWillPayloadProvider(Provider);
+	}
 }
 
 void UMqttTransportClient::BindConnectionDelegates()

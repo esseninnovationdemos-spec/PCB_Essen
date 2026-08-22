@@ -55,11 +55,16 @@ void UFactoryMachineComponent::BeginPlay()
 		return;
 	}
 
+	// Resolve the definition list once: it is immutable for the lifetime of play,
+	// and rebuilding it per tick deep-copied FString-bearing structs every frame.
+	EffectiveMetrics = Instance->GetEffectiveMetrics();
+
 	// Seed per-metric runtime at the idle value so the first ramp starts sensibly.
-	for (const FFactoryMetricDefinition& Definition : Instance->GetEffectiveMetrics())
+	for (const FFactoryMetricDefinition& Definition : EffectiveMetrics)
 	{
 		FFactoryMetricRuntime Runtime;
 		Runtime.CurrentValue = Definition.IdleValue;
+		Runtime.RampStartValue = Definition.IdleValue;
 		Runtime.NextSpikeIn = Definition.Spike.bEnabled
 			? SampleExponential(Definition.Spike.MeanMinutesBetween * 60.0)
 			: TNumericLimits<double>::Max();
@@ -189,7 +194,7 @@ void UFactoryMachineComponent::TickComponent(
 
 void UFactoryMachineComponent::AdvanceRuntime(const float DeltaTime)
 {
-	for (const FFactoryMetricDefinition& Definition : Instance->GetEffectiveMetrics())
+	for (const FFactoryMetricDefinition& Definition : EffectiveMetrics)
 	{
 		FFactoryMetricRuntime* Runtime = MetricRuntime.Find(Definition.Name);
 		if (Runtime == nullptr)
@@ -278,9 +283,9 @@ double UFactoryMachineComponent::SampleMetric(
 
 		Value = Definition.bThermal
 			// Newton cooling: fast at first, asymptotic at the target.
-			? Target + (Definition.IdleValue - Target)
+			? Target + (Runtime.RampStartValue - Target)
 				* FMath::Exp(-Archetype->ThermalRampConstant * Alpha)
-			: FMath::Lerp(Definition.IdleValue, Target, Alpha);
+			: FMath::Lerp(Runtime.RampStartValue, Target, Alpha);
 		break;
 	}
 
@@ -289,7 +294,9 @@ double UFactoryMachineComponent::SampleMetric(
 		const double Alpha = (Archetype->CooldownSeconds > 0.0f)
 			? FMath::Clamp(StateElapsed / Archetype->CooldownSeconds, 0.0f, 1.0f)
 			: 1.0;
-		const double Start = Nominal.Midpoint();
+		// Cool from wherever the metric actually was, not from a nominal value:
+		// a machine that faulted high must decay from the fault value.
+		const double Start = Runtime.RampStartValue;
 
 		Value = Definition.bThermal
 			? Definition.IdleValue + (Start - Definition.IdleValue)
@@ -385,9 +392,9 @@ void UFactoryMachineComponent::PublishSample(
 
 	TArray<FSparkplugMetric> Metrics;
 	const UFactoryMachineArchetype* Archetype = Instance->Archetype;
-	Metrics.Reserve(Instance->GetEffectiveMetrics().Num() + 7);
+	Metrics.Reserve(EffectiveMetrics.Num() + 7);
 
-	for (const FFactoryMetricDefinition& Definition : Instance->GetEffectiveMetrics())
+	for (const FFactoryMetricDefinition& Definition : EffectiveMetrics)
 	{
 		// Cycle-scoped metrics such as cycle_time_sec only make sense at the end
 		// of a cycle; sending them every tick would publish meaningless numbers.
@@ -492,7 +499,7 @@ TArray<FSparkplugMetric> UFactoryMachineComponent::BuildBirthMetrics() const
 
 	// DBIRTH must advertise every metric the device will ever publish, because
 	// it is what establishes the name/alias map consumers cache.
-	for (const FFactoryMetricDefinition& Definition : Instance->GetEffectiveMetrics())
+	for (const FFactoryMetricDefinition& Definition : EffectiveMetrics)
 	{
 		FSparkplugMetric Metric = MakeMetric(Definition.Name, Definition.DataType);
 		if (Metric.UsesDoubleStorage())
@@ -565,6 +572,8 @@ void UFactoryMachineComponent::StartCycle()
 	}
 
 	CycleElapsed = 0.0f;
+	bCycleInProgress = true;
+	bInspectionReportedThisCycle = false;
 
 	// Advance the part id as material enters the station.
 	if (!Instance->PartIds.IsEmpty())
@@ -587,7 +596,30 @@ void UFactoryMachineComponent::CompleteCycle()
 		return;
 	}
 
+	if (!bCycleInProgress)
+	{
+		// No StartCycle preceded this, so CycleElapsed is left over from an
+		// earlier board. Publishing it would double-count that duration
+		// downstream, so report the transition without cycle-scoped metrics.
+		UE_LOG(LogFactorySim, Warning,
+			TEXT("%s: CompleteCycle without a matching StartCycle; skipping cycle metrics"),
+			*GetNameSafe(GetOwner()));
+		PublishSample(FactoryEventTypes::CycleComplete, false);
+		SetMachineState(EFactoryMachineState::Idle);
+		return;
+	}
+
 	LastCycleSeconds = CycleElapsed;
+	bCycleInProgress = false;
+
+	// An inspection station must report a verdict for every board. If the
+	// Blueprint did not call ReportInspection explicitly, roll one from the
+	// configured fail rate -- otherwise inspection_result and fail_counter would
+	// sit at their birth values forever and fail_rate would have no effect.
+	if (Instance->Archetype->bIsInspectionStation && !bInspectionReportedThisCycle)
+	{
+		RollInspection();
+	}
 
 	// The cycle-complete sample is the only one carrying cycle-scoped metrics.
 	PublishSample(FactoryEventTypes::CycleComplete, true);
@@ -614,6 +646,13 @@ void UFactoryMachineComponent::SetMachineState(const EFactoryMachineState NewSta
 	State = NewState;
 	StateElapsed = 0.0f;
 
+	// Freeze where every metric is right now; Warmup and Cooldown ramp from here
+	// so a transition never produces a step change in the published value.
+	for (TPair<FString, FFactoryMetricRuntime>& Pair : MetricRuntime)
+	{
+		Pair.Value.RampStartValue = Pair.Value.CurrentValue;
+	}
+
 	OnStateChanged.Broadcast(OldState, NewState);
 
 	// A state change is worth reporting immediately rather than waiting for the
@@ -623,6 +662,7 @@ void UFactoryMachineComponent::SetMachineState(const EFactoryMachineState NewSta
 
 void UFactoryMachineComponent::ReportInspection(const bool bPassed)
 {
+	bInspectionReportedThisCycle = true;
 	LastInspectionResult = bPassed ? TEXT("PASS") : TEXT("FAIL");
 	if (!bPassed)
 	{

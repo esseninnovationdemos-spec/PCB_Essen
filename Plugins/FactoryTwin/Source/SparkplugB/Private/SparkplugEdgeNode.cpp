@@ -58,9 +58,6 @@ void USparkplugEdgeNode::Connect(const FSparkplugEdgeNodeConfig& InConfig)
 
 	Config = InConfig;
 
-	// A new session gets a new bdSeq, and NBIRTH and NDEATH must agree on it.
-	++BirthDeathSequence;
-
 	Client = NewObject<UMqttTransportClient>(this);
 	Client->OnConnected.AddDynamic(this, &USparkplugEdgeNode::HandleMqttConnected);
 	Client->OnDisconnected.AddDynamic(this, &USparkplugEdgeNode::HandleMqttDisconnected);
@@ -72,12 +69,21 @@ void USparkplugEdgeNode::Connect(const FSparkplugEdgeNodeConfig& InConfig)
 	// that is the whole reason this project has its own MQTT client.
 	Options.Will.bEnabled = true;
 	Options.Will.Topic = BuildTopic(ESparkplugMessageType::NDEATH, FString());
-	Options.Will.Payload = BuildDeathPayload();
 	Options.Will.QoS = EMqttQoS::AtLeastOnce;
 	Options.Will.bRetain = false;
 
-	UE_LOG(LogSparkplugB, Log, TEXT("Edge node '%s/%s' connecting to %s:%d (bdSeq %lld)"),
-		*Config.GroupId, *Config.EdgeNodeId, *Options.Host, Options.Port, BirthDeathSequence);
+	// Each MQTT session needs its own bdSeq, and the transport reconnects on its
+	// own after a drop, so the payload is built per CONNECT rather than captured
+	// here. Sharing one bdSeq across sessions would stop a host application
+	// telling two consecutive sessions apart.
+	Client->SetWillPayloadProvider(FMqttWillPayloadProvider::CreateUObject(
+		this, &USparkplugEdgeNode::BuildSessionDeathPayload));
+
+	// Seed the will for the very first CONNECT; the provider refreshes it after.
+	Options.Will.Payload = BuildDeathPayload();
+
+	UE_LOG(LogSparkplugB, Log, TEXT("Edge node '%s/%s' connecting to %s:%d"),
+		*Config.GroupId, *Config.EdgeNodeId, *Options.Host, Options.Port);
 
 	Client->Connect(Options);
 }
@@ -122,6 +128,14 @@ void USparkplugEdgeNode::Disconnect()
 	Client = nullptr;
 }
 
+TArray<uint8> USparkplugEdgeNode::BuildSessionDeathPayload()
+{
+	// Runs on the transport worker thread immediately before CONNECT.
+	// BirthDeathSequence is atomic because NBIRTH reads it from the game thread.
+	BirthDeathSequence.fetch_add(1, std::memory_order_relaxed);
+	return BuildDeathPayload();
+}
+
 TArray<uint8> USparkplugEdgeNode::BuildDeathPayload() const
 {
 	FSparkplugPayload Payload;
@@ -130,7 +144,8 @@ TArray<uint8> USparkplugEdgeNode::BuildDeathPayload() const
 	Payload.bHasSeq = false;
 
 	FSparkplugMetric Metric = FSparkplugMetric::MakeUInt64(
-		BirthDeathSequenceMetricName, 0, static_cast<uint64>(BirthDeathSequence));
+		BirthDeathSequenceMetricName, 0,
+		static_cast<uint64>(BirthDeathSequence.load(std::memory_order_relaxed)));
 	Metric.Timestamp = 0;
 	Payload.Metrics.Add(MoveTemp(Metric));
 
@@ -199,7 +214,8 @@ void USparkplugEdgeNode::PublishNodeBirth()
 
 	// bdSeq must be first and must match the NDEATH registered as the will.
 	Payload.Metrics.Add(FSparkplugMetric::MakeUInt64(
-		BirthDeathSequenceMetricName, 0, static_cast<uint64>(BirthDeathSequence)));
+		BirthDeathSequenceMetricName, 0,
+		static_cast<uint64>(BirthDeathSequence.load(std::memory_order_relaxed))));
 	// Advertising Rebirth tells controllers they may ask us to re-announce.
 	Payload.Metrics.Add(FSparkplugMetric::MakeBool(RebirthMetricName, 0, false));
 

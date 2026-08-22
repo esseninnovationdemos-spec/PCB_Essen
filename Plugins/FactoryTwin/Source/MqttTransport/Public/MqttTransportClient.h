@@ -42,6 +42,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "MQTT")
 	void Connect(const FMqttConnectionOptions& InOptions);
 
+	/**
+	 * Installs a provider that rebuilds the will before every CONNECT.
+	 * Must be set before Connect. See FMqttWillPayloadProvider.
+	 */
+	void SetWillPayloadProvider(const FMqttWillPayloadProvider& Provider);
+
 	/** Graceful shutdown: sends DISCONNECT, which suppresses the will. */
 	UFUNCTION(BlueprintCallable, Category = "MQTT")
 	void Disconnect();
@@ -86,6 +92,7 @@ private:
 
 	TSharedPtr<FMqttConnection, ESPMode::ThreadSafe> Connection;
 	FMqttConnectionOptions Options;
+	FMqttWillPayloadProvider WillPayloadProvider;
 };
 
 /** Owns the live clients so they survive garbage collection for the session's lifetime. */

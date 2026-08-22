@@ -59,6 +59,12 @@ public:
 	FOnDisconnectedSignature& OnDisconnected() { return DisconnectedEvent; }
 	FOnMessageSignature& OnMessage() { return MessageEvent; }
 
+	/** See FMqttWillPayloadProvider. Runs on the worker thread. */
+	void SetWillPayloadProvider(const FMqttWillPayloadProvider& Provider)
+	{
+		WillPayloadProvider = Provider;
+	}
+
 	//~ FRunnable
 	virtual bool Init() override;
 	virtual uint32 Run() override;
@@ -105,8 +111,17 @@ private:
 	/** Partial inbound bytes awaiting a complete frame. Worker thread only. */
 	TArray<uint8> ReceiveBuffer;
 
-	/** QoS>0 sends awaiting acknowledgement, keyed by packet id. Worker thread only. */
+	/** Redelivers everything still unacknowledged. Called after a reconnect. */
+	void ResendInFlight();
+
+	/**
+	 * QoS>0 sends awaiting acknowledgement, keyed by packet id. Written by any
+	 * publishing thread and drained by the worker, so it needs the lock.
+	 */
 	TMap<uint16, TArray<uint8>> InFlight;
+	mutable FCriticalSection InFlightLock;
+
+	FMqttWillPayloadProvider WillPayloadProvider;
 
 	FThreadSafeCounter PacketIdCounter{ 0 };
 

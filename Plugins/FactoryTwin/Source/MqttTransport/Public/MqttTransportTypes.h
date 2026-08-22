@@ -6,6 +6,16 @@
 
 MQTTTRANSPORT_API DECLARE_LOG_CATEGORY_EXTERN(LogMqttTransport, Log, All);
 
+/**
+ * Supplies a will payload immediately before each CONNECT, reconnects included.
+ * Invoked on the transport worker thread.
+ *
+ * Exists because Sparkplug requires a fresh bdSeq per MQTT session and the will
+ * is registered during the handshake, so a payload captured once would go stale
+ * the first time the client reconnected.
+ */
+DECLARE_DELEGATE_RetVal(TArray<uint8>, FMqttWillPayloadProvider);
+
 /** MQTT 3.1.1 quality of service. */
 UENUM(BlueprintType)
 enum class EMqttQoS : uint8
