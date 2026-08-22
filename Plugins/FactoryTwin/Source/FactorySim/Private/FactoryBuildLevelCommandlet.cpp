@@ -1,6 +1,8 @@
 #include "FactoryBuildLevelCommandlet.h"
 
 #include "Engine/DirectionalLight.h"
+#include "Engine/PointLight.h"
+#include "Components/PointLightComponent.h"
 #include "Engine/SkyLight.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Engine/PostProcessVolume.h"
@@ -573,8 +575,58 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		Settings.AutoExposureBias = 1.0f;
 	}
 
-	// A floor, so the stations are not floating in a void.
-	if (UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(
+	// The building. The project ships a 34 by 100 metre hall at 21k triangles,
+	// which the line fits inside several times over -- so the level gets a real
+	// factory around it rather than a slab in an empty sky, at a geometry cost
+	// smaller than one of the machines standing in it.
+	bool bHasWarehouse = false;
+	if (UClass* WarehouseClass = LoadObject<UClass>(
+		nullptr, TEXT("/Game/Environment/Warehouse_BP.Warehouse_BP_C")))
+	{
+		// Offset so the line sits centred across the hall's width and a sensible
+		// way along its length, rather than against a wall.
+		if (AActor* Warehouse = World->SpawnActor<AActor>(
+			WarehouseClass, FTransform(FRotator::ZeroRotator,
+				FactoryGrid::MetresToWorld(FVector2D(1.5, 12.0)))))
+		{
+			Warehouse->SetActorLabel(TEXT("Warehouse"));
+			bHasWarehouse = true;
+		}
+	}
+
+	// Bay lighting. A hall roofed in steel keeps the sun out, which is the point
+	// of a roof and the reason the line was sitting in the dark once it had one.
+	if (bHasWarehouse)
+	{
+		const int32 Fixtures = 5;
+		const double Spacing = (LineExtentX - LineStartX) / Fixtures;
+
+		for (int32 Index = 0; Index < Fixtures; ++Index)
+		{
+			const double X = LineStartX + Spacing * (Index + 0.5);
+			if (APointLight* Bay = World->SpawnActor<APointLight>(
+				FactoryGrid::MetresToWorld(FVector2D(X, 0.0), 650.0), FRotator::ZeroRotator))
+			{
+				Bay->SetActorLabel(FString::Printf(TEXT("BayLight_%d"), Index + 1));
+				Bay->SetMobility(EComponentMobility::Movable);
+				if (UPointLightComponent* Light = Cast<UPointLightComponent>(Bay->GetLightComponent()))
+				{
+					Light->SetIntensity(40000.0f);
+					Light->SetAttenuationRadius(1600.0f);
+					// Fill only. The sun casts the shadows; five more shadow
+					// casters over the same machines would cost far more than
+					// the lighting is worth.
+					Light->SetCastShadows(false);
+				}
+			}
+		}
+
+		UE_LOG(LogFactorySim, Display, TEXT("  bay lighting: %d fixture(s)"), Fixtures);
+	}
+
+	// A floor, only when there is no building to stand in: the hall brings its
+	// own slab, and two floors at the same height fight.
+	if (UStaticMesh* PlaneMesh = bHasWarehouse ? nullptr : LoadObject<UStaticMesh>(
 		nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")))
 	{
 		if (AStaticMeshActor* Floor = World->SpawnActor<AStaticMeshActor>(
