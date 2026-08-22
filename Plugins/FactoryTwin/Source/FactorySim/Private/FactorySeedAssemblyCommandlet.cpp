@@ -404,7 +404,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 
 	// Process order along the belt.
 	const FBeltMachine BeltOrder[] = {
-		{ TEXT("RECEIVE_SEMI"),      0.50 },   // a 3 cm plate; floored so it is reachable
+		{ TEXT("RECEIVE_SEMI"),      1.61 },   // loader
 		{ TEXT("HOUSING_ASSEMBLY"),  1.48 },
 		{ TEXT("PIN_INSERTION"),     1.48 },
 		{ TEXT("PIN_INSPECTION"),    2.10 },
@@ -412,12 +412,14 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 		{ TEXT("FLASH_PROGRAMMING"), 1.19 },
 		{ TEXT("PIN_CHECK"),         1.19 },
 		{ TEXT("EOL_TEST"),          1.43 },
-		{ TEXT("PACKAGING"),         0.83 },
+		{ TEXT("PACKAGING"),         1.61 },   // unloader
 	};
 
-	// Gangway between machines. Enough for a short run of conveyor to read as
-	// conveyor, and no more.
-	constexpr double Gangway = 0.6;
+	// No gangway: the machines butt up against each other the way a real line is
+	// built. Each one carries its own conveyor through its own body, so a
+	// continuous row of them is a continuous belt -- the gaps were never
+	// transporting anything, they were just holes in the line.
+	constexpr double Gangway = 0.0;
 
 	TMap<FString, double> PackedX;
 	TMap<FString, double> PackedHalfWidth;
@@ -426,14 +428,12 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 		for (const FBeltMachine& Machine : BeltOrder)
 		{
 			const double Half = Machine.WidthMetres * 0.5;
-			// Snap the centre, then push the cursor past where the machine
-			// actually ended up rather than where it would have been unsnapped,
-			// so snapping can never eat the gangway.
-			double Centre = FactoryGrid::SnapMetres(FVector2D(Cursor + Half, 0.0)).X;
-			if (Centre - Half < Cursor)
-			{
-				Centre += FactoryGrid::GetPitchMetres();
-			}
+			// Deliberately not snapped to the layout grid. Snapping to the
+			// half-metre pitch rounds each machine outward and reintroduces up to
+			// half a metre of gap per joint, which is the thing being removed.
+			// The grid stays what the floor plan is drawn on, not what the line
+			// is built to.
+			const double Centre = Cursor + Half;
 			PackedX.Add(Machine.Device, Centre);
 			PackedHalfWidth.Add(Machine.Device, Half);
 			Cursor = Centre + Half + Gangway;
@@ -446,7 +446,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	{
 		const double Left = PackedX[Upstream] + PackedHalfWidth[Upstream];
 		const double Right = PackedX[Downstream] - PackedHalfWidth[Downstream];
-		return FactoryGrid::SnapMetres(FVector2D((Left + Right) * 0.5, 0.0)).X;
+		return (Left + Right) * 0.5;
 	};
 
 	auto At = [&](const TCHAR* Device) -> FVector2D
@@ -503,7 +503,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_AssemblyRobot"), RobotType,
-		TEXT("ASSEMBLY_ROBOT"), TEXT("HandlingRobot"), FVector2D(Beside(TEXT("PIN_INSPECTION"), TEXT("ICT")), 1.5), { 1.40, 0.61 }))
+		TEXT("ASSEMBLY_ROBOT"), TEXT("HandlingRobot"), FVector2D(Beside(TEXT("PIN_INSPECTION"), TEXT("ICT")), 1.5), { 1.38, 0.61 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("tcp_speed_mms"), TEXT("joint_load_pct"), TEXT("payload_kg"),
@@ -544,7 +544,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* I = Make(TEXT("I_Packaging"), PackType,
-		TEXT("PACKAGING"), TEXT("Packaging"), At(TEXT("PACKAGING")), { 0.83, 0.83 }))
+		TEXT("PACKAGING"), TEXT("Packaging"), At(TEXT("PACKAGING")), { 1.61, 1.15 }))
 	{
 		NextAlias = PinAliases(I, NextAlias,
 			{ TEXT("units_in_carton"), TEXT("seal_temp_c"), TEXT("cycle_time_sec") });
@@ -566,7 +566,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 	// Stations the project already had and the line was not using. Appended
 	// here for the same alias-stability reason as the conveyor below.
 	if (UFactoryMachineInstance* I = Make(TEXT("I_ReceiveSemi"), BufferType,
-		TEXT("RECEIVE_SEMI"), TEXT("ReceiveSemi"), At(TEXT("RECEIVE_SEMI")), { 0.50, 0.64 }))
+		TEXT("RECEIVE_SEMI"), TEXT("ReceiveSemi"), At(TEXT("RECEIVE_SEMI")), { 1.61, 1.15 }))
 	{
 		NextAlias = PinAliases(I, NextAlias, { TEXT("occupancy"), TEXT("fill_pct") });
 		Created.Add(I);

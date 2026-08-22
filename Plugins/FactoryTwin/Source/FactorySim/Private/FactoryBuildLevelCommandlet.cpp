@@ -47,11 +47,18 @@ namespace LevelBuild
 		  TEXT("/Game/FinalAssembly-Workcenter/FlashProgramming/Flash_Programming_BP.Flash_Programming_BP_C") },
 		{ TEXT("/Game/FactoryTwin/Instances/I_EndOfLineTest.I_EndOfLineTest"),
 		  TEXT("/Game/FinalAssembly-Workcenter/EndOfLine/EndOfLine_Inspection_BP.EndOfLine_Inspection_BP_C") },
+		// Packaging_BP has no machine body either -- only the carton meshes its
+		// graph spawns. The magazine unit that finished goods go into measures
+		// 11 by 7 metres, which is a staging area rather than a station, so the
+		// loader stands in here as well: a loader at the head of the line and an
+		// unloader at the end is how the line is actually built.
 		{ TEXT("/Game/FactoryTwin/Instances/I_Packaging.I_Packaging"),
-		  TEXT("/Game/FinalAssembly-Workcenter/Packaging/Packaging_BP.Packaging_BP_C") },
+		  TEXT("/Game/SMT-Workcenter/Loader/Loader_BP.Loader_BP_C") },
 		// Stations the project ships that the line was not using.
+		// ReceiveSemi_BP is a waypoint with no geometry; the SMT loader is the
+		// same job -- material arriving at the head of a line -- and has a body.
 		{ TEXT("/Game/FactoryTwin/Instances/I_ReceiveSemi.I_ReceiveSemi"),
-		  TEXT("/Game/FinalAssembly-Workcenter/ReceiveSemi/ReceiveSemi_BP.ReceiveSemi_BP_C") },
+		  TEXT("/Game/SMT-Workcenter/Loader/Loader_BP.Loader_BP_C") },
 		{ TEXT("/Game/FactoryTwin/Instances/I_PinInspection.I_PinInspection"),
 		  TEXT("/Game/FinalAssembly-Workcenter/PinVerification/PinInsertionCheck_BP.PinInsertionCheck_BP_C") },
 		{ TEXT("/Game/FactoryTwin/Instances/I_PinCheck.I_PinCheck"),
@@ -613,7 +620,10 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 			const double Length = Run.Value - Run.Key;
 			if (Length < 0.4)
 			{
-				continue;   // too short to read as conveyor; leave the gap open
+				// Nothing between two machines that are touching. Conveyor now
+				// only leads in and runs off; the machines carry the belt
+				// through themselves.
+				continue;
 			}
 
 			FActorSpawnParameters ConveyorParams;
