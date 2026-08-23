@@ -24,8 +24,18 @@ namespace PlantSeed
 	constexpr int64 PlantAliasBase = 1000;
 	constexpr int64 AliasesPerLine = 200;
 
-	/** Hierarchy the tags hang from: Essen is the site, InnoLab the plant. */
-	const FString UnsRoot = TEXT("Essen/InnoLab");
+	/**
+	 * ISA-95 levels above the line.
+	 *
+	 * InnoLab is the enterprise, Essen the site it operates. Every line in this
+	 * hall is one work centre inside a single SMT area: the stations that do
+	 * final assembly are still part of the same physical cell, and splitting
+	 * them into their own area would put half of each line on a separate edge
+	 * node for no gain.
+	 */
+	const FString Enterprise = TEXT("InnoLab");
+	const FString Site       = TEXT("Essen");
+	const FString PlantArea  = TEXT("SMT");
 
 	/**
 	 * One station in the template every line is built from.
@@ -37,10 +47,16 @@ namespace PlantSeed
 	 */
 	struct FStationTemplate
 	{
-		const TCHAR* Device;       // suffix; the line prefix is added
+		/**
+		 * ISA-95 work unit, the Sparkplug device, and the asset name suffix.
+		 *
+		 * Spelled the way the original SMT line spells its devices, because
+		 * level2's line and this plant's line 1 are the same work centre --
+		 * InnoLab/Essen/SMT/Line1 -- and a consumer subscribed to it should not
+		 * see REFLOW_OVEN from one level and ReflowOven from the other.
+		 */
+		const TCHAR* Device;
 		const TCHAR* Archetype;
-		const TCHAR* UnsArea;      // SMT or Assembly
-		const TCHAR* UnsLeaf;
 		double WidthMetres;
 		double DepthMetres;
 		/** Set back from the belt, serving it from the side. */
@@ -51,24 +67,24 @@ namespace PlantSeed
 	// final assembly: one line is a whole product rather than half of one.
 	const FStationTemplate Template[] = {
 		// --- SMT
-		{ TEXT("LOADER"),            TEXT("A_Buffer"),          TEXT("SMT"), TEXT("Loader"),          1.61, 1.15, 0.0 },
-		{ TEXT("LASER_MARKING"),     TEXT("A_LaserProcess"),    TEXT("SMT"), TEXT("LaserMarking"),    1.50, 1.20, 0.0 },
-		{ TEXT("SOLDER_PASTE"),      TEXT("A_ManualStation"),   TEXT("SMT"), TEXT("SolderPaste"),     1.80, 1.20, 0.0 },
-		{ TEXT("SOLDER_INSP"),       TEXT("A_VisionInspection"),TEXT("SMT"), TEXT("SPI"),             1.60, 1.20, 0.0 },
-		{ TEXT("COMPONENT_PLACER"),  TEXT("A_PickAndPlace"),    TEXT("SMT"), TEXT("ComponentPlacer"), 2.20, 1.40, 0.0 },
-		{ TEXT("REFLOW_OVEN"),       TEXT("A_ThermalProcess"),  TEXT("SMT"), TEXT("ReflowOven"),      3.00, 1.40, 0.0 },
-		{ TEXT("AUTO_OPTICALINSP"),  TEXT("A_VisionInspection"),TEXT("SMT"), TEXT("AOI"),             1.60, 1.20, 0.0 },
-		{ TEXT("PCB_CLEANER"),       TEXT("A_ManualStation"),   TEXT("SMT"), TEXT("PcbCleaner"),      1.60, 1.20, 0.0 },
+		{ TEXT("LOADER"),            TEXT("A_Buffer"),          1.61, 1.15, 0.0 },
+		{ TEXT("LASER_MARKING"),     TEXT("A_LaserProcess"),    1.50, 1.20, 0.0 },
+		{ TEXT("SOLDER_PASTE"),      TEXT("A_ManualStation"),   1.80, 1.20, 0.0 },
+		{ TEXT("SOLDER_INSP"),       TEXT("A_VisionInspection"),1.60, 1.20, 0.0 },
+		{ TEXT("COMPONENT_PLACER"),  TEXT("A_PickAndPlace"),    2.20, 1.40, 0.0 },
+		{ TEXT("REFLOW_OVEN"),       TEXT("A_ThermalProcess"),  3.00, 1.40, 0.0 },
+		{ TEXT("AUTO_OPTICALINSP"),  TEXT("A_VisionInspection"),1.60, 1.20, 0.0 },
+		{ TEXT("PCB_CLEANER"),       TEXT("A_ManualStation"),   1.60, 1.20, 0.0 },
 		// --- final assembly
-		{ TEXT("HOUSING_ASSEMBLY"),  TEXT("A_OperatorBench"),   TEXT("Assembly"), TEXT("HousingAssembly"), 1.48, 0.99, 0.0 },
-		{ TEXT("PIN_INSERTION"),     TEXT("A_PressInsertion"),  TEXT("Assembly"), TEXT("PinInsertion"),    1.48, 0.99, 0.0 },
-		{ TEXT("PIN_INSPECTION"),    TEXT("A_OperatorBench"),   TEXT("Assembly"), TEXT("PinInspection"),   2.10, 0.99, 0.0 },
-		{ TEXT("ASSEMBLY_ROBOT"),    TEXT("A_RoboticArm"),      TEXT("Assembly"), TEXT("HandlingRobot"),   1.38, 0.61, 1.5 },
-		{ TEXT("ICT"),               TEXT("A_ElectricalTest"),  TEXT("Assembly"), TEXT("ICT"),             2.10, 0.99, 0.0 },
-		{ TEXT("FLASH_PROGRAMMING"), TEXT("A_Programming"),     TEXT("Assembly"), TEXT("FlashProgramming"),1.19, 0.99, 0.0 },
-		{ TEXT("PIN_CHECK"),         TEXT("A_VisionInspection"),TEXT("Assembly"), TEXT("PinCheck"),        1.19, 0.99, 0.0 },
-		{ TEXT("EOL_TEST"),          TEXT("A_FunctionalTest"),  TEXT("Assembly"), TEXT("EndOfLineTest"),   1.43, 1.78, 0.0 },
-		{ TEXT("PACKAGING"),         TEXT("A_Packaging"),       TEXT("Assembly"), TEXT("Packaging"),       1.61, 1.15, 0.0 },
+		{ TEXT("HOUSING_ASSEMBLY"),  TEXT("A_OperatorBench"),   1.48, 0.99, 0.0 },
+		{ TEXT("PIN_INSERTION"),     TEXT("A_PressInsertion"),  1.48, 0.99, 0.0 },
+		{ TEXT("PIN_INSPECTION"),    TEXT("A_OperatorBench"),   2.10, 0.99, 0.0 },
+		{ TEXT("ASSEMBLY_ROBOT"),    TEXT("A_RoboticArm"),      1.38, 0.61, 1.5 },
+		{ TEXT("ICT"),               TEXT("A_ElectricalTest"),  2.10, 0.99, 0.0 },
+		{ TEXT("FLASH_PROGRAMMING"), TEXT("A_Programming"),     1.19, 0.99, 0.0 },
+		{ TEXT("PIN_CHECK"),         TEXT("A_VisionInspection"),1.19, 0.99, 0.0 },
+		{ TEXT("EOL_TEST"),          TEXT("A_FunctionalTest"),  1.43, 1.78, 0.0 },
+		{ TEXT("PACKAGING"),         TEXT("A_Packaging"),       1.61, 1.15, 0.0 },
 	};
 
 	/** The transport, which is one device for the whole line. */
@@ -163,8 +179,8 @@ int32 UFactorySeedPlantCommandlet::Main(const FString& Params)
 		Lines = FMath::Clamp(FCString::Atoi(*ParamMap[TEXT("Lines")]), 1, 8);
 	}
 
-	UE_LOG(LogFactorySim, Display, TEXT("Seeding a plant of %d line(s) under %s"),
-		Lines, *UnsRoot);
+	UE_LOG(LogFactorySim, Display, TEXT("Seeding a plant of %d line(s) under %s/%s/%s"),
+		Lines, *Enterprise, *Site, *PlantArea);
 
 	TArray<UObject*> Created;
 
@@ -178,7 +194,6 @@ int32 UFactorySeedPlantCommandlet::Main(const FString& Params)
 
 		for (const FStationTemplate& Station : Template)
 		{
-			const FString Device = FString::Printf(TEXT("L%d_%s"), Line, Station.Device);
 			const FString AssetName = FString::Printf(TEXT("I_L%d_%s"), Line, Station.Device);
 
 			UFactoryMachineInstance* Instance =
@@ -199,9 +214,17 @@ int32 UFactorySeedPlantCommandlet::Main(const FString& Params)
 			}
 
 			Instance->Archetype = Archetype;
-			Instance->DeviceId = Device;
-			Instance->UnsPath = FString::Printf(TEXT("%s/%s/Line%d/%s"),
-				*UnsRoot, Station.UnsArea, Line, Station.UnsLeaf);
+
+			// Identity is the ISA-95 path and nothing else; the device id and
+			// the UNS path both fall out of it, so they cannot disagree. The
+			// work unit is the bare station name -- the line is already carried
+			// by the work centre, and repeating it as "L1_LOADER" would put the
+			// same fact in the topic twice.
+			Instance->Isa95 = FFactoryIsa95Path{
+				Enterprise, Site, PlantArea,
+				FString::Printf(TEXT("Line%d"), Line),
+				Station.Device };
+
 			Instance->LayoutFootprint = FVector2D(Station.WidthMetres, Station.DepthMetres);
 
 			double X = Cursor + Station.WidthMetres * 0.5;
@@ -241,9 +264,14 @@ int32 UFactorySeedPlantCommandlet::Main(const FString& Params)
 		{
 			Conveyor->Archetype = LoadObject<UFactoryMachineArchetype>(
 				nullptr, TEXT("/Game/FactoryTwin/Archetypes/A_Conveyor.A_Conveyor"));
-			Conveyor->DeviceId = FString::Printf(TEXT("L%d_%s"), Line, ConveyorDevice);
-			Conveyor->UnsPath = FString::Printf(TEXT("%s/Transport/Line%d/Conveyor"),
-				*UnsRoot, Line);
+			// The belt belongs to the line it serves, not to a separate
+			// "Transport" area: putting it elsewhere in the hierarchy would move
+			// it onto its own edge node, so a line going down would leave its
+			// own conveyor reporting healthy.
+			Conveyor->Isa95 = FFactoryIsa95Path{
+				Enterprise, Site, PlantArea,
+				FString::Printf(TEXT("Line%d"), Line),
+				TEXT("Conveyor") };
 			Conveyor->LayoutPosition = FVector2D(Cursor * 0.5, 0.0);
 			Conveyor->LayoutFootprint = FVector2D(Cursor, 0.8);
 

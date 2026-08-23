@@ -40,6 +40,11 @@ public class FactorySim : ModuleRules
 					"UnrealEd",
 					"AssetTools",
 					"AssetRegistry",
+					// Building the PBR parent material's node graph. Connecting
+					// expressions by hand means reaching into the material's
+					// editor-only data; UMaterialEditingLibrary is the supported
+					// way to do it and keeps the material compiling itself.
+					"MaterialEditor",
 				}
 				);
 		}

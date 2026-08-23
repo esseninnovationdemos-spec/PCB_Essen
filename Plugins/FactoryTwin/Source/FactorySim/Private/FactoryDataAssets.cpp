@@ -187,6 +187,38 @@ FFactoryRange UFactoryMachineInstance::GetNominalRange(
 	return Definition.Nominal;
 }
 
+FString UFactoryMachineInstance::GetDeviceId() const
+{
+	// The hierarchy wins where it is filled in, so an asset that has been
+	// migrated publishes under its ISA-95 work unit even if the legacy field
+	// was left behind. Only assets with no hierarchy at all fall back.
+	return Isa95.IsValid() ? Isa95.ToDeviceId() : DeviceId;
+}
+
+FString UFactoryMachineInstance::GetGroupId() const
+{
+	return Isa95.IsValid() ? Isa95.ToGroupId() : FString();
+}
+
+FString UFactoryMachineInstance::GetEdgeNodeId() const
+{
+	return Isa95.IsValid() ? Isa95.ToEdgeNodeId() : FString();
+}
+
+FString UFactoryMachineInstance::GetUnsPath() const
+{
+	return Isa95.IsValid() ? Isa95.ToUnsPath() : UnsPath;
+}
+
+FString UFactoryMachineInstance::GetLevelLabel() const
+{
+	if (!Isa95.IsValid())
+	{
+		return DeviceId;
+	}
+	return FString::Printf(TEXT("%s_%s"), *Isa95.WorkCenter, *Isa95.WorkUnit);
+}
+
 FPrimaryAssetId UFactoryMachineInstance::GetPrimaryAssetId() const
 {
 	return FPrimaryAssetId(TEXT("FactoryMachineInstance"), GetFName());
@@ -203,11 +235,45 @@ EDataValidationResult UFactoryMachineInstance::IsDataValid(FDataValidationContex
 		return EDataValidationResult::Invalid;
 	}
 
-	if (DeviceId.IsEmpty())
+	if (GetDeviceId().IsEmpty())
 	{
 		Context.AddError(LOCTEXT("NoDeviceId",
 			"Instance has no device id; it would publish to a malformed topic."));
 		Result = EDataValidationResult::Invalid;
+	}
+
+	if (!Isa95.IsValid())
+	{
+		// A warning, not an error: the legacy fields still publish. But an
+		// unmigrated asset cannot be addressed by hierarchy, so it will not
+		// appear under the site's UNS tree alongside everything else.
+		Context.AddWarning(LOCTEXT("NoIsa95",
+			"Instance has no ISA-95 path; it falls back to the legacy device id "
+			"and UNS path, and its topic will not match the site hierarchy."));
+	}
+	else
+	{
+		// Sparkplug reserves these in every topic-element slot. A name carrying
+		// one would publish to a topic that overlaps another device's
+		// subscription, which is far worse than refusing to build it.
+		for (const TPair<FString, FString>& Level : {
+				TPair<FString, FString>(TEXT("Enterprise"), Isa95.Enterprise),
+				TPair<FString, FString>(TEXT("Site"),       Isa95.Site),
+				TPair<FString, FString>(TEXT("Area"),       Isa95.Area),
+				TPair<FString, FString>(TEXT("WorkCenter"), Isa95.WorkCenter),
+				TPair<FString, FString>(TEXT("WorkUnit"),   Isa95.WorkUnit) })
+		{
+			if (!FactoryIsa95::IsLegalTopicElement(Level.Value))
+			{
+				Context.AddError(FText::Format(
+					LOCTEXT("IllegalIsa95Level",
+						"ISA-95 level '{0}' is '{1}', which contains a character "
+						"Sparkplug reserves ('/', '+' or '#')."),
+					FText::FromString(Level.Key),
+					FText::FromString(Level.Value)));
+				Result = EDataValidationResult::Invalid;
+			}
+		}
 	}
 
 	// Every emittable metric needs an alias, and no two may share one.

@@ -131,7 +131,7 @@ namespace LevelBuild
 			if (UFactoryMachineInstance* Instance =
 				LoadObject<UFactoryMachineInstance>(nullptr, Spec.InstanceAsset))
 			{
-				if (Instance->DeviceId == DeviceId)
+				if (Instance->GetDeviceId() == DeviceId)
 				{
 					return Spec.InstanceAsset;
 				}
@@ -142,7 +142,7 @@ namespace LevelBuild
 			if (UFactoryMachineInstance* Instance =
 				LoadObject<UFactoryMachineInstance>(nullptr, Asset))
 			{
-				if (Instance->DeviceId == DeviceId)
+				if (Instance->GetDeviceId() == DeviceId)
 				{
 					return Asset;
 				}
@@ -303,7 +303,7 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		{
 			UE_LOG(LogFactorySim, Warning,
 				TEXT("Blueprint '%s' not found; skipping %s"),
-				Spec.BlueprintAsset, *Instance->DeviceId);
+				Spec.BlueprintAsset, *Instance->GetDeviceId());
 			++Skipped;
 			continue;
 		}
@@ -320,23 +320,24 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 		SpawnParams.SpawnCollisionHandlingOverride =
 			ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		SpawnParams.Name = MakeUniqueObjectName(World->PersistentLevel, StationClass,
-			FName(*Instance->DeviceId));
+			FName(*Instance->GetDeviceId()));
 
 		AActor* Station = World->SpawnActor<AActor>(StationClass, Transform, SpawnParams);
 		if (Station == nullptr)
 		{
-			UE_LOG(LogFactorySim, Warning, TEXT("Could not spawn %s"), *Instance->DeviceId);
+			UE_LOG(LogFactorySim, Warning, TEXT("Could not spawn %s"), *Instance->GetDeviceId());
 			++Skipped;
 			continue;
 		}
 
-		Station->SetActorLabel(Instance->DeviceId);
+		Station->SetActorLabel(Instance->GetLevelLabel());
+		FactoryShapeMaterials::ApplyMachineFinish(Station);
 
 		// Stations the production line serves are driven by the units arriving at
 		// them, so they must not also run on a timer -- two things calling
 		// StartCycle on one machine interleave into nonsense. Anything the line
 		// does not reach still needs a driver to do more than sit Idle.
-		if (!IsDrivenByLine(Instance->DeviceId))
+		if (!IsDrivenByLine(Instance->GetDeviceId()))
 		{
 			UFactoryCycleDriverComponent* Driver = NewObject<UFactoryCycleDriverComponent>(
 				Station, UFactoryCycleDriverComponent::StaticClass(), TEXT("CycleDriver"));
@@ -363,16 +364,16 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 					ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 				GoalSpawnParams.Name = MakeUniqueObjectName(
 					World->PersistentLevel, GoalClass,
-					FName(*FString::Printf(TEXT("%s_Goal"), *Instance->DeviceId)));
+					FName(*FString::Printf(TEXT("%s_Goal"), *Instance->GetDeviceId())));
 
 				if (AActor* Goal = World->SpawnActor<AActor>(
 					GoalClass, GoalTransform, GoalSpawnParams))
 				{
-					Goal->SetActorLabel(FString::Printf(TEXT("%s_Goal"), *Instance->DeviceId));
+					Goal->SetActorLabel(FString::Printf(TEXT("%s_Goal"), *Instance->GetDeviceId()));
 					SetActorObjectProperty(Station, TEXT("Goal Ref"), Goal);
 					SetActorObjectProperty(Goal, TEXT("UR5e Ref"), Station);
 					UE_LOG(LogFactorySim, Display,
-						TEXT("  paired %s with its motion goal"), *Instance->DeviceId);
+						TEXT("  paired %s with its motion goal"), *Instance->GetDeviceId());
 				}
 			}
 		}
@@ -386,7 +387,7 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 			const FVector Size = Box.GetSize() / FactoryGrid::MetresToCm;
 			UE_LOG(LogFactorySim, Display,
 				TEXT("    %-18s measured %5.2f x %5.2f m   declared %5.2f x %5.2f m"),
-				*Instance->DeviceId, Size.X, Size.Y,
+				*Instance->GetDeviceId(), Size.X, Size.Y,
 				Instance->LayoutFootprint.X, Instance->LayoutFootprint.Y);
 		}
 
@@ -401,7 +402,7 @@ int32 UFactoryBuildLevelCommandlet::Main(const FString& Params)
 
 		++Placed;
 		UE_LOG(LogFactorySim, Display, TEXT("  placed %-20s at (%.1f, %.1f) m"),
-			*Instance->DeviceId, Instance->LayoutPosition.X, Instance->LayoutPosition.Y);
+			*Instance->GetDeviceId(), Instance->LayoutPosition.X, Instance->LayoutPosition.Y);
 	}
 
 	// Extent of the packed line. Computed here rather than where the conveyor is

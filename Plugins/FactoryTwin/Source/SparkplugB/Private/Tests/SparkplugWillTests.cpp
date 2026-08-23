@@ -42,7 +42,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FSparkplugWillFiresTest::RunTest(const FString& Parameters)
 {
-	const FString DeathTopic = TEXT("spBv1.0/SMT_Line/NDEATH/Cluj");
+	const FString DeathTopic = TEXT("spBv1.0/InnoLab:Essen:SMT/NDEATH/Line1");
 	constexpr uint64 ExpectedBdSeq = 42;
 
 	// --- watcher -----------------------------------------------------------
@@ -171,7 +171,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FSparkplugWillSuppressedTest::RunTest(const FString& Parameters)
 {
-	const FString DeathTopic = TEXT("spBv1.0/SMT_Line/NDEATH/CleanExit");
+	const FString DeathTopic = TEXT("spBv1.0/InnoLab:Essen:SMT/NDEATH/CleanExit");
 
 	FMqttConnectionOptions WatcherOptions;
 	WatcherOptions.Host = TEXT("127.0.0.1");

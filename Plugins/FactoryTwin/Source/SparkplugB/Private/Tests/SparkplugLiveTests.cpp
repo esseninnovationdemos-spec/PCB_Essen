@@ -57,7 +57,7 @@ bool FSparkplugLivePublishTest::RunTest(const FString& Parameters)
 	DeathPayload.Metrics.Add(FSparkplugMetric::MakeUInt64(TEXT("bdSeq"), 0, 0));
 
 	Options.Will.bEnabled = true;
-	Options.Will.Topic = TEXT("spBv1.0/SMT_Line/NDEATH/Cluj");
+	Options.Will.Topic = TEXT("spBv1.0/InnoLab:Essen:SMT/NDEATH/Line1");
 	Options.Will.Payload = SparkplugProto::EncodePayload(DeathPayload);
 	Options.Will.QoS = EMqttQoS::AtLeastOnce;
 	Options.Will.bRetain = false;
@@ -104,7 +104,7 @@ bool FSparkplugLivePublishTest::RunTest(const FString& Parameters)
 	Birth.Metrics.Add(FSparkplugMetric::MakeString(
 		TEXT("Properties/SimulatorVersion"), 0, TEXT("1.0.0")));
 	Birth.Metrics.Add(FSparkplugMetric::MakeString(
-		TEXT("Properties/UE5_Project"), 0, TEXT("SMT_Cluj")));
+		TEXT("Properties/UE5_Project"), 0, TEXT("InnoLab_Essen_SMT")));
 	Birth.Metrics.Add(FSparkplugMetric::MakeFloat(TEXT("oven_temp_c"), 23, 241.75f));
 	Birth.Metrics.Add(FSparkplugMetric::MakeInt32(TEXT("state_code"), 26, 1));
 	Birth.Metrics.Add(FSparkplugMetric::MakeString(TEXT("event_type"), 32, TEXT("CYCLE_COMPLETE")));
@@ -117,7 +117,7 @@ bool FSparkplugLivePublishTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("payload contains an embedded null"), Encoded.Contains(0));
 
 	TestTrue(TEXT("publish accepted"), Connection->Publish(
-		TEXT("spBv1.0/SMT_Line/NBIRTH/Cluj"), Encoded, EMqttQoS::AtLeastOnce, false));
+		TEXT("spBv1.0/InnoLab:Essen:SMT/NBIRTH/Line1"), Encoded, EMqttQoS::AtLeastOnce, false));
 
 	// Give the worker thread a moment to drain the outbound queue.
 	FPlatformProcess::Sleep(1.0f);
@@ -125,7 +125,7 @@ bool FSparkplugLivePublishTest::RunTest(const FString& Parameters)
 	Connection->Close();
 
 	UE_LOG(LogSparkplugB, Display,
-		TEXT("Live test published %d bytes to spBv1.0/SMT_Line/NBIRTH/Cluj"), Encoded.Num());
+		TEXT("Live test published %d bytes to spBv1.0/InnoLab:Essen:SMT/NBIRTH/Line1"), Encoded.Num());
 
 	return true;
 }

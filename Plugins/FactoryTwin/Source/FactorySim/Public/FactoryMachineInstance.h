@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "FactoryIsa95.h"
 #include "FactorySimTypes.h"
 
 #include "FactoryMachineInstance.generated.h"
@@ -28,11 +29,25 @@ public:
 	TObjectPtr<UFactoryMachineArchetype> Archetype;
 
 	/**
-	 * Sparkplug device id, and the last segment of the topic.
-	 * Wire-visible and case-sensitive: the existing line uses inconsistent
-	 * casing ("Conveyor" but "REFLOW_OVEN"), which must be reproduced exactly.
+	 * Where this machine sits in the equipment hierarchy.
+	 *
+	 * The identity of record. Both the Sparkplug topic and the UNS path are
+	 * derived from it, so they cannot disagree -- see GetDeviceId/GetUnsPath.
+	 * Leave it empty only on assets predating the ISA-95 model, which fall back
+	 * to the legacy fields below.
 	 */
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Instance")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Instance|Identity")
+	FFactoryIsa95Path Isa95;
+
+	/**
+	 * Legacy free-text Sparkplug device id.
+	 *
+	 * Superseded by Isa95.WorkUnit and consulted only when Isa95 is not filled
+	 * in. Kept so assets seeded before the hierarchy existed keep publishing
+	 * under the device id their consumers already subscribe to, rather than
+	 * silently going quiet on load.
+	 */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Instance|Legacy")
 	FString DeviceId;
 
 	/**
@@ -90,14 +105,46 @@ public:
 	float CarrierDwellSeconds = 12.0f;
 
 	/**
-	 * Hierarchical Unified Namespace path, e.g. "Essen/Cluj/SMT/Line1/ReflowOven".
+	 * Legacy free-text UNS path.
 	 *
-	 * Sparkplug topics are flat (group/verb/node/device) while a UNS is
-	 * hierarchical, so both representations are generated from this one
-	 * definition rather than maintained separately.
+	 * Superseded by Isa95.ToUnsPath(). Same reasoning as DeviceId above: this
+	 * is a fallback for assets seeded before the hierarchy existed, not
+	 * somewhere to type a new path. Maintaining it by hand alongside the topic
+	 * is what let the two drift apart in the first place.
 	 */
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Instance|UNS")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Instance|Legacy")
 	FString UnsPath;
+
+	/**
+	 * Sparkplug device id: the ISA-95 work unit, or the legacy field when no
+	 * hierarchy is set.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Instance|Identity")
+	FString GetDeviceId() const;
+
+	/** Sparkplug group id: Enterprise:Site:Area. Empty without a hierarchy. */
+	UFUNCTION(BlueprintPure, Category = "Instance|Identity")
+	FString GetGroupId() const;
+
+	/** Sparkplug edge node id: the work centre. Empty without a hierarchy. */
+	UFUNCTION(BlueprintPure, Category = "Instance|Identity")
+	FString GetEdgeNodeId() const;
+
+	/** Hierarchical UNS path, derived from the ISA-95 levels where present. */
+	UFUNCTION(BlueprintPure, Category = "Instance|Identity")
+	FString GetUnsPath() const;
+
+	/**
+	 * A name for the actor placed for this instance, e.g. "Line1_ReflowOven".
+	 *
+	 * Not the device id: a device id only has to be unique on its own edge
+	 * node, so once several lines run the same stations they all answer to
+	 * "ReflowOven" -- fine on the wire, but actor names share one namespace per
+	 * level and would collide. Qualifying by work centre keeps them distinct
+	 * while still reading as the same station on each line.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Instance|Identity")
+	FString GetLevelLabel() const;
 
 	/** Top-down position in metres, for the 2D floor plan. */
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Instance|Layout")

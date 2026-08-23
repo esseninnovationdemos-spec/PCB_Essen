@@ -63,7 +63,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FSparkplugSessionLifecycleTest::RunTest(const FString& Parameters)
 {
-	const FString GroupId = TEXT("SMT_Line_Test");
+	const FString GroupId = TEXT("InnoLab:Essen:Test");
 	const FString NodeId = TEXT("SessionTest");
 
 	// --- watcher, on the raw connection so it needs no game-thread pumping ---

@@ -484,7 +484,13 @@ void UFactoryMachineComponent::PublishSample(
 	EventMetric.StringValue = EventType;
 	Metrics.Add(MoveTemp(EventMetric));
 
-	Line->GetEdgeNode()->PublishDeviceData(Instance->DeviceId, Metrics);
+	// This machine's own node, not simply the first one: with an edge node per
+	// production line, publishing through the wrong one would put the device on
+	// a topic no consumer of that line subscribes to.
+	if (USparkplugEdgeNode* Node = Line->FindEdgeNodeForMachine(this))
+	{
+		Node->PublishDeviceData(Instance->GetDeviceId(), Metrics);
+	}
 }
 
 TArray<FSparkplugMetric> UFactoryMachineComponent::BuildBirthMetrics() const

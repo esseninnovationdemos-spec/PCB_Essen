@@ -21,12 +21,23 @@ struct SPARKPLUGB_API FSparkplugEdgeNodeConfig
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Sparkplug")
 	FString Namespace = TEXT("spBv1.0");
 
-	/** Wire-visible: changing this breaks every downstream consumer. */
+	/**
+	 * Wire-visible: changing this breaks every downstream consumer.
+	 *
+	 * The ISA-95 levels above the work centre, packed into Sparkplug's single
+	 * group slot as Enterprise:Site:Area. Colon rather than slash because the
+	 * spec reserves '/', '+' and '#' in this position -- swapping ':' for '/'
+	 * recovers the UNS path.
+	 *
+	 * A machine carrying its own ISA-95 path overrides this; it only applies to
+	 * assets seeded before that existed.
+	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Sparkplug")
-	FString GroupId = TEXT("SMT_Line");
+	FString GroupId = TEXT("InnoLab:Essen:SMT");
 
+	/** The ISA-95 work centre: one edge node per production line. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Sparkplug")
-	FString EdgeNodeId = TEXT("Cluj");
+	FString EdgeNodeId = TEXT("Line1");
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Sparkplug")
 	FMqttConnectionOptions Mqtt;
@@ -130,7 +141,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Sparkplug")
 	int64 GetBirthDeathSequence() const { return BirthDeathSequence.load(std::memory_order_relaxed); }
 
-	/** Builds a topic for this node, e.g. spBv1.0/SMT_Line/DDATA/Cluj/REFLOW_OVEN. */
+	/** Builds a topic for this node, e.g. spBv1.0/InnoLab:Essen:SMT/DDATA/Line1/REFLOW_OVEN. */
 	UFUNCTION(BlueprintPure, Category = "Sparkplug")
 	FString BuildTopic(ESparkplugMessageType MessageType, const FString& DeviceId) const;
 

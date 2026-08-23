@@ -118,20 +118,35 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Factory Twin|Auto Production")
 	int32 GetBoardsReleased() const { return BoardsReleased; }
 
-	UFUNCTION(BlueprintPure, Category = "Factory Twin")
-	USparkplugEdgeNode* GetEdgeNode() const { return EdgeNode; }
-
 	/**
-	 * The registered machine publishing under this Sparkplug device id.
+	 * The first edge node, for callers that predate the per-line split.
 	 *
-	 * Device id is the identifier the rest of the system already uses, so
-	 * anything driving machines by name -- a production line, an inbound command
-	 * -- can find one without holding a hard reference to the actor.
-	 *
-	 * @return The machine, or null if nothing is registered under that id.
+	 * With one node per production line this is no longer "the" node; anything
+	 * publishing on a specific device wants FindEdgeNodeForMachine instead.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Factory Twin")
-	UFactoryMachineComponent* FindMachine(const FString& DeviceId) const;
+	USparkplugEdgeNode* GetEdgeNode() const;
+
+	/** Every edge node this world has brought up, one per ISA-95 work centre. */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin")
+	TArray<USparkplugEdgeNode*> GetEdgeNodes() const;
+
+	/** The edge node carrying this machine's traffic, or null if it has none. */
+	USparkplugEdgeNode* FindEdgeNodeForMachine(const UFactoryMachineComponent* Machine) const;
+
+	/**
+	 * The registered machine matching a device id or a full UNS path.
+	 *
+	 * Anything containing a '/' is matched against the UNS path, everything else
+	 * against the Sparkplug device id. Both are needed: a device id is unique
+	 * only within its edge node, so once several lines run the same station
+	 * names, "ReflowOven" alone is ambiguous and the caller must qualify it as
+	 * InnoLab/Essen/SMT/Line2/ReflowOven.
+	 *
+	 * @return The machine, or null if nothing matches.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin")
+	UFactoryMachineComponent* FindMachine(const FString& DeviceIdOrUnsPath) const;
 
 	/** Called by machine components on BeginPlay. */
 	void RegisterMachine(UFactoryMachineComponent* Machine);
@@ -159,17 +174,33 @@ private:
 	UFUNCTION()
 	void HandleNodeCommand(const FSparkplugPayload& Payload);
 
-	/** Announces every registered machine as a Sparkplug device. */
-	void RegisterDevicesWithEdgeNode();
-
-	/** Registers devices and connects. Deferred a tick past StartLineWithConfig. */
+	/** Brings up one edge node per work centre and announces its devices. */
 	void BeginEdgeNodeSession();
 
-	/** True when a machine with this Sparkplug device id is already registered. */
-	bool HasDeviceId(const FString& DeviceId) const;
+	/**
+	 * Which edge node a machine belongs on: "<group>|<node>".
+	 *
+	 * Machines with no ISA-95 path fall back to the configured group and node,
+	 * so a level that has not been reseeded still comes up on a single node
+	 * exactly as it did before.
+	 */
+	FString GetEdgeNodeKey(const UFactoryMachineComponent* Machine) const;
 
+	/** Config for one node, derived from the template plus the key's identity. */
+	FSparkplugEdgeNodeConfig BuildConfigForKey(const FString& Key) const;
+
+	/** Recomputes the aggregate online state and broadcasts it if it changed. */
+	void RefreshOnlineState();
+
+	/** True when this edge node already carries a device with that id. */
+	bool HasDeviceId(const FString& Key, const FString& DeviceId) const;
+
+	/** Keyed by "<group>|<node>". One per ISA-95 work centre in the level. */
 	UPROPERTY(Transient)
-	TObjectPtr<USparkplugEdgeNode> EdgeNode;
+	TMap<FString, TObjectPtr<USparkplugEdgeNode>> EdgeNodes;
+
+	/** Last aggregate state broadcast, so the delegate only fires on change. */
+	bool bWasOnline = false;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UFactoryMachineComponent>> Machines;

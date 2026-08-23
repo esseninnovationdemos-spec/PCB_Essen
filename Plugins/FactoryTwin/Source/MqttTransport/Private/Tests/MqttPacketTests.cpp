@@ -68,7 +68,7 @@ bool FMqttConnectWithBinaryWillTest::RunTest(const FString& Parameters)
 	Options.KeepAliveSeconds = 60;
 	Options.bCleanSession = true;
 	Options.Will.bEnabled = true;
-	Options.Will.Topic = TEXT("spBv1.0/SMT_Line/NDEATH/Cluj");
+	Options.Will.Topic = TEXT("spBv1.0/InnoLab:Essen:SMT/NDEATH/Line1");
 	Options.Will.QoS = EMqttQoS::AtLeastOnce;
 	// Deliberately hostile bytes: an embedded null and a high byte are exactly
 	// what broke the old mosquitto-based plugin (strlen + ANSICHAR narrowing).
@@ -144,7 +144,7 @@ bool FMqttPublishBinaryPayloadTest::RunTest(const FString& Parameters)
 		Payload.Add(static_cast<uint8>(Value));
 	}
 
-	const FString Topic = TEXT("spBv1.0/SMT_Line/DDATA/Cluj/REFLOW_OVEN");
+	const FString Topic = TEXT("spBv1.0/InnoLab:Essen:SMT/DDATA/Line1/REFLOW_OVEN");
 	const TArray<uint8> Packet =
 		MqttPacket::BuildPublish(Topic, Payload, EMqttQoS::AtLeastOnce, false, 0x1234);
 

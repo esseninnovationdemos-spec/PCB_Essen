@@ -104,7 +104,7 @@ bool FFactoryAliasCompatTest::RunTest(const FString& Parameters)
 		}
 
 		TestEqual(FString::Printf(TEXT("%s device id"), Expectation.AssetName),
-			Instance->DeviceId, FString(Expectation.DeviceId));
+			Instance->GetDeviceId(), FString(Expectation.DeviceId));
 
 		for (const TPair<FString, int64>& Pair : Expectation.Aliases)
 		{

@@ -79,7 +79,7 @@ void UFactoryLineSubsystem::StartLine()
 
 void UFactoryLineSubsystem::StartLineWithConfig(const FSparkplugEdgeNodeConfig& InConfig)
 {
-	if (EdgeNode != nullptr)
+	if (EdgeNodes.Num() > 0)
 	{
 		UE_LOG(LogFactorySim, Warning, TEXT("Line is already started"));
 		return;
@@ -90,10 +90,9 @@ void UFactoryLineSubsystem::StartLineWithConfig(const FSparkplugEdgeNodeConfig& 
 		StartNewLot();
 	}
 
-	EdgeNode = NewObject<USparkplugEdgeNode>(this);
-	EdgeNode->OnOnlineStateChanged.AddDynamic(this, &UFactoryLineSubsystem::HandleEdgeNodeOnline);
-	EdgeNode->OnNodeCommand.AddDynamic(this, &UFactoryLineSubsystem::HandleNodeCommand);
-
+	// The nodes themselves are created in BeginEdgeNodeSession: how many there
+	// are depends on which work centres the registered machines belong to, and
+	// none of them have registered yet.
 	PendingConfig = InConfig;
 
 	// Defer the actual session by a tick.
@@ -114,21 +113,128 @@ void UFactoryLineSubsystem::StartLineWithConfig(const FSparkplugEdgeNodeConfig& 
 	}
 }
 
+FString UFactoryLineSubsystem::GetEdgeNodeKey(const UFactoryMachineComponent* Machine) const
+{
+	FString Group = PendingConfig.GroupId;
+	FString Node  = PendingConfig.EdgeNodeId;
+
+	if (Machine != nullptr && Machine->Instance != nullptr)
+	{
+		const FString InstanceGroup = Machine->Instance->GetGroupId();
+		const FString InstanceNode  = Machine->Instance->GetEdgeNodeId();
+		if (!InstanceGroup.IsEmpty() && !InstanceNode.IsEmpty())
+		{
+			Group = InstanceGroup;
+			Node  = InstanceNode;
+		}
+	}
+
+	return FString::Printf(TEXT("%s|%s"), *Group, *Node);
+}
+
+FSparkplugEdgeNodeConfig UFactoryLineSubsystem::BuildConfigForKey(const FString& Key) const
+{
+	// Everything except identity comes from the template the caller supplied,
+	// so a broker typed into the UI reaches every node.
+	FSparkplugEdgeNodeConfig Config = PendingConfig;
+
+	FString Group;
+	FString Node;
+	if (Key.Split(TEXT("|"), &Group, &Node))
+	{
+		Config.GroupId = Group;
+		Config.EdgeNodeId = Node;
+	}
+
+	// Every edge node is a separate MQTT session, and a broker will disconnect
+	// the older of two sessions sharing a client id. Without this suffix the
+	// second line to connect would silently kick the first off the wire.
+	Config.Mqtt.ClientId = FString::Printf(TEXT("%s_%s_%s"),
+		*PendingConfig.Mqtt.ClientId,
+		*Config.GroupId.Replace(FactoryIsa95::GroupSeparator, TEXT("_")),
+		*Config.EdgeNodeId);
+
+	return Config;
+}
+
 void UFactoryLineSubsystem::BeginEdgeNodeSession()
 {
-	if (EdgeNode == nullptr)
+	// Group the registered machines by the work centre they belong to. Devices
+	// must be registered before Connect so their DBIRTHs are part of the birth
+	// sequence rather than trickling in afterwards.
+	TMap<FString, TArray<UFactoryMachineComponent*>> ByNode;
+	for (const TObjectPtr<UFactoryMachineComponent>& Machine : Machines)
 	{
+		if (Machine == nullptr || Machine->Instance == nullptr)
+		{
+			continue;
+		}
+
+		if (Machine->Instance->GetDeviceId().IsEmpty())
+		{
+			UE_LOG(LogFactorySim, Warning,
+				TEXT("Machine on '%s' has an instance with no device id; skipping"),
+				*GetNameSafe(Machine->GetOwner()));
+			continue;
+		}
+
+		ByNode.FindOrAdd(GetEdgeNodeKey(Machine)).Add(Machine);
+	}
+
+	if (ByNode.Num() == 0)
+	{
+		UE_LOG(LogFactorySim, Warning,
+			TEXT("No machines with a usable device id; not connecting."));
 		return;
 	}
 
-	// Devices must be registered before Connect so their DBIRTHs are part of the
-	// birth sequence rather than trickling in afterwards.
-	RegisterDevicesWithEdgeNode();
+	UE_LOG(LogFactorySim, Log,
+		TEXT("Starting line with %d machine(s) across %d edge node(s), lot '%s'"),
+		Machines.Num(), ByNode.Num(), *LotId);
 
-	UE_LOG(LogFactorySim, Log, TEXT("Starting line with %d machine(s), lot '%s'"),
-		Machines.Num(), *LotId);
+	for (const TPair<FString, TArray<UFactoryMachineComponent*>>& Pair : ByNode)
+	{
+		const FSparkplugEdgeNodeConfig Config = BuildConfigForKey(Pair.Key);
 
-	EdgeNode->Connect(PendingConfig);
+		USparkplugEdgeNode* Node = NewObject<USparkplugEdgeNode>(this);
+		Node->OnOnlineStateChanged.AddDynamic(this, &UFactoryLineSubsystem::HandleEdgeNodeOnline);
+		Node->OnNodeCommand.AddDynamic(this, &UFactoryLineSubsystem::HandleNodeCommand);
+		EdgeNodes.Add(Pair.Key, Node);
+
+		UE_LOG(LogFactorySim, Log, TEXT("edge node %s/%s -- %d device(s)"),
+			*Config.GroupId, *Config.EdgeNodeId, Pair.Value.Num());
+
+		// Tracked as we go rather than by asking HasDeviceId: by this point every
+		// machine is already in Machines, so that query would find the machine
+		// currently being registered and report it as a duplicate of itself --
+		// which skipped all of them and left the node announcing no devices at
+		// all.
+		TSet<FString> Announced;
+
+		for (UFactoryMachineComponent* Machine : Pair.Value)
+		{
+			const FString DeviceId = Machine->Instance->GetDeviceId();
+
+			// Unique per edge node, not globally: once several lines run the
+			// same station names, "ReflowOven" appears once on each line's node
+			// and that is correct.
+			if (Announced.Contains(DeviceId))
+			{
+				UE_LOG(LogFactorySim, Warning,
+					TEXT("  '%s' is already registered on this node; skipping %s"),
+					*DeviceId, *GetNameSafe(Machine->GetOwner()));
+				continue;
+			}
+
+			Announced.Add(DeviceId);
+			Node->RegisterDevice(DeviceId, Machine->BuildBirthMetrics());
+			UE_LOG(LogFactorySim, Log, TEXT("  device '%s' (%s) from %s"),
+				*DeviceId, *Machine->Instance->GetUnsPath(),
+				*GetNameSafe(Machine->GetOwner()));
+		}
+
+		Node->Connect(Config);
+	}
 
 	const UFactoryTwinSettings* Settings = UFactoryTwinSettings::Get();
 	if (Settings != nullptr && Settings->bAutoProduceOnStart)
@@ -137,18 +243,52 @@ void UFactoryLineSubsystem::BeginEdgeNodeSession()
 	}
 }
 
-bool UFactoryLineSubsystem::HasDeviceId(const FString& DeviceId) const
+bool UFactoryLineSubsystem::HasDeviceId(const FString& Key, const FString& DeviceId) const
 {
 	for (const TObjectPtr<UFactoryMachineComponent>& Machine : Machines)
 	{
 		if (Machine != nullptr
 			&& Machine->Instance != nullptr
-			&& Machine->Instance->DeviceId == DeviceId)
+			&& Machine->Instance->GetDeviceId() == DeviceId
+			&& GetEdgeNodeKey(Machine) == Key)
 		{
 			return true;
 		}
 	}
 	return false;
+}
+
+USparkplugEdgeNode* UFactoryLineSubsystem::GetEdgeNode() const
+{
+	for (const TPair<FString, TObjectPtr<USparkplugEdgeNode>>& Pair : EdgeNodes)
+	{
+		if (Pair.Value != nullptr)
+		{
+			return Pair.Value;
+		}
+	}
+	return nullptr;
+}
+
+TArray<USparkplugEdgeNode*> UFactoryLineSubsystem::GetEdgeNodes() const
+{
+	TArray<USparkplugEdgeNode*> Result;
+	Result.Reserve(EdgeNodes.Num());
+	for (const TPair<FString, TObjectPtr<USparkplugEdgeNode>>& Pair : EdgeNodes)
+	{
+		if (Pair.Value != nullptr)
+		{
+			Result.Add(Pair.Value);
+		}
+	}
+	return Result;
+}
+
+USparkplugEdgeNode* UFactoryLineSubsystem::FindEdgeNodeForMachine(
+	const UFactoryMachineComponent* Machine) const
+{
+	const TObjectPtr<USparkplugEdgeNode>* Found = EdgeNodes.Find(GetEdgeNodeKey(Machine));
+	return (Found != nullptr) ? *Found : nullptr;
 }
 
 bool UFactoryLineSubsystem::StartLineWithBroker(
@@ -185,16 +325,28 @@ bool UFactoryLineSubsystem::StartLineWithBroker(
 	Config.Mqtt.Password = BrokerPassword;
 
 	StartLineWithConfig(Config);
-	return EdgeNode != nullptr;
+	// Nodes are created a tick later, so report on whether the attempt was
+	// accepted rather than on a map that is necessarily still empty.
+	return true;
 }
 
-UFactoryMachineComponent* UFactoryLineSubsystem::FindMachine(const FString& DeviceId) const
+UFactoryMachineComponent* UFactoryLineSubsystem::FindMachine(
+	const FString& DeviceIdOrUnsPath) const
 {
+	const bool bIsPath = DeviceIdOrUnsPath.Contains(TEXT("/"));
+
 	for (const TObjectPtr<UFactoryMachineComponent>& Machine : Machines)
 	{
-		if (Machine != nullptr
-			&& Machine->Instance != nullptr
-			&& Machine->Instance->DeviceId == DeviceId)
+		if (Machine == nullptr || Machine->Instance == nullptr)
+		{
+			continue;
+		}
+
+		const FString Candidate = bIsPath
+			? Machine->Instance->GetUnsPath()
+			: Machine->Instance->GetDeviceId();
+
+		if (Candidate == DeviceIdOrUnsPath)
 		{
 			return Machine;
 		}
@@ -221,18 +373,49 @@ void UFactoryLineSubsystem::StopLine()
 	// nowhere to publish them.
 	StopAutoProduction();
 
-	if (EdgeNode == nullptr)
+	for (const TPair<FString, TObjectPtr<USparkplugEdgeNode>>& Pair : EdgeNodes)
 	{
-		return;
+		if (Pair.Value != nullptr)
+		{
+			Pair.Value->Disconnect();
+		}
 	}
-
-	EdgeNode->Disconnect();
-	EdgeNode = nullptr;
+	EdgeNodes.Empty();
+	RefreshOnlineState();
 }
 
 bool UFactoryLineSubsystem::IsOnline() const
 {
-	return EdgeNode != nullptr && EdgeNode->IsOnline();
+	if (EdgeNodes.Num() == 0)
+	{
+		return false;
+	}
+
+	// Every node, not any: with one node per line, "the line is online" is only
+	// true once all of them have published their births. Reporting online while
+	// a line is still dark would have the UI claim data is flowing from a line
+	// that is publishing nothing.
+	for (const TPair<FString, TObjectPtr<USparkplugEdgeNode>>& Pair : EdgeNodes)
+	{
+		if (Pair.Value == nullptr || !Pair.Value->IsOnline())
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+void UFactoryLineSubsystem::RefreshOnlineState()
+{
+	const bool bOnline = IsOnline();
+	if (bOnline == bWasOnline)
+	{
+		return;
+	}
+
+	bWasOnline = bOnline;
+	UE_LOG(LogFactorySim, Log, TEXT("Line is %s"), bOnline ? TEXT("online") : TEXT("offline"));
+	OnLineOnlineChanged.Broadcast(bOnline);
 }
 
 FString UFactoryLineSubsystem::StartNewLot()
@@ -249,26 +432,31 @@ void UFactoryLineSubsystem::RegisterMachine(UFactoryMachineComponent* Machine)
 		return;
 	}
 
-	// A Sparkplug device id must be unique on the edge node. Two components
+	// A Sparkplug device id must be unique on its edge node. Two components
 	// claiming the same id would publish interleaved DDATA under one identity
 	// and re-announce a DBIRTH each time, which is how a machine component
 	// accidentally placed on a per-board spawned actor shows up.
-	if (Machine->Instance != nullptr && HasDeviceId(Machine->Instance->DeviceId))
+	if (Machine->Instance != nullptr
+		&& HasDeviceId(GetEdgeNodeKey(Machine), Machine->Instance->GetDeviceId()))
 	{
 		UE_LOG(LogFactorySim, Warning,
-			TEXT("%s claims device id '%s', which is already registered. Ignoring it: a device "
-				 "id maps to one physical machine, so this component likely belongs on a "
+			TEXT("%s claims device id '%s' on %s, which is already registered. Ignoring it: a "
+				 "device id maps to one physical machine, so this component likely belongs on a "
 				 "persistent actor rather than one spawned per board."),
-			*GetNameSafe(Machine->GetOwner()), *Machine->Instance->DeviceId);
+			*GetNameSafe(Machine->GetOwner()), *Machine->Instance->GetDeviceId(),
+			*GetEdgeNodeKey(Machine));
 		return;
 	}
 
 	Machines.Add(Machine);
 
 	// Joining an already-live line announces immediately.
-	if (EdgeNode != nullptr && Machine->Instance != nullptr)
+	if (Machine->Instance != nullptr)
 	{
-		EdgeNode->RegisterDevice(Machine->Instance->DeviceId, Machine->BuildBirthMetrics());
+		if (USparkplugEdgeNode* Node = FindEdgeNodeForMachine(Machine))
+		{
+			Node->RegisterDevice(Machine->Instance->GetDeviceId(), Machine->BuildBirthMetrics());
+		}
 	}
 }
 
@@ -279,45 +467,22 @@ void UFactoryLineSubsystem::UnregisterMachine(UFactoryMachineComponent* Machine)
 		return;
 	}
 
-	if (EdgeNode != nullptr && Machine->Instance != nullptr)
+	if (Machine->Instance != nullptr)
 	{
-		EdgeNode->UnregisterDevice(Machine->Instance->DeviceId);
+		if (USparkplugEdgeNode* Node = FindEdgeNodeForMachine(Machine))
+		{
+			Node->UnregisterDevice(Machine->Instance->GetDeviceId());
+		}
 	}
 	Machines.Remove(Machine);
 }
 
-void UFactoryLineSubsystem::RegisterDevicesWithEdgeNode()
-{
-	if (EdgeNode == nullptr)
-	{
-		return;
-	}
-
-	for (const TObjectPtr<UFactoryMachineComponent>& Machine : Machines)
-	{
-		if (Machine == nullptr || Machine->Instance == nullptr)
-		{
-			continue;
-		}
-
-		if (Machine->Instance->DeviceId.IsEmpty())
-		{
-			UE_LOG(LogFactorySim, Warning,
-				TEXT("Machine on '%s' has an instance with no device id; skipping"),
-				*GetNameSafe(Machine->GetOwner()));
-			continue;
-		}
-
-		EdgeNode->RegisterDevice(Machine->Instance->DeviceId, Machine->BuildBirthMetrics());
-		UE_LOG(LogFactorySim, Log, TEXT("  device '%s' from %s"),
-			*Machine->Instance->DeviceId, *GetNameSafe(Machine->GetOwner()));
-	}
-}
-
 void UFactoryLineSubsystem::HandleEdgeNodeOnline(const bool bOnline)
 {
-	UE_LOG(LogFactorySim, Log, TEXT("Line is %s"), bOnline ? TEXT("online") : TEXT("offline"));
-	OnLineOnlineChanged.Broadcast(bOnline);
+	// One node's transition is not the line's: with several nodes the delegate
+	// fires once per node, so the aggregate is recomputed and only broadcast
+	// when it actually changes.
+	RefreshOnlineState();
 }
 
 void UFactoryLineSubsystem::HandleNodeCommand(const FSparkplugPayload& Payload)

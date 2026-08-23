@@ -13,6 +13,12 @@ namespace SmtSeed
 	const FString ArchetypeFolder = TEXT("/Game/FactoryTwin/Archetypes");
 	const FString InstanceFolder = TEXT("/Game/FactoryTwin/Instances");
 
+	/** Where this line sits in the plant. The original SMT line, on level2. */
+	const FString Enterprise = TEXT("InnoLab");
+	const FString Site       = TEXT("Essen");
+	const FString Area       = TEXT("SMT");
+	const FString WorkCentre = TEXT("Line1");
+
 	/** Builds a Float process metric. Most tags are this shape. */
 	FFactoryMetricDefinition MakeFloatMetric(
 		const FString& Name,
@@ -177,12 +183,12 @@ namespace SmtSeed
 			{
 				UE_LOG(LogFactorySim, Error,
 					TEXT("%s can emit '%s' but no alias was pinned for it"),
-					*Instance->DeviceId, *MetricName);
+					*Instance->GetDeviceId(), *MetricName);
 			}
 		}
 
 		UE_LOG(LogFactorySim, Display, TEXT("  %-22s aliases %lld-%lld"),
-			*Instance->DeviceId, Start, Next - 1);
+			*Instance->GetDeviceId(), Start, Next - 1);
 		return Next;
 	}
 }
@@ -415,24 +421,31 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 	auto MakeInstance = [&](
 		const FString& AssetName,
 		UFactoryMachineArchetype* Archetype,
-		const FString& DeviceId,
-		const FString& UnsPath) -> UFactoryMachineInstance*
+		const FString& DeviceId) -> UFactoryMachineInstance*
 	{
 		UFactoryMachineInstance* Instance =
 			CreateAsset<UFactoryMachineInstance>(InstanceFolder, AssetName, bForce);
 		if (Instance != nullptr)
 		{
 			Instance->Archetype = Archetype;
-			Instance->DeviceId = DeviceId;
-			Instance->UnsPath = UnsPath;
+
+			// The existing device ids are kept verbatim as the work unit, odd
+			// casing and all. They are what the downstream ClickHouse bridge is
+			// mapped against, and this line's whole reason for pinning aliases
+			// is not to disturb that mapping. Only the levels above the device
+			// change, which is unavoidable: the group and node used to say
+			// SMT_Line/Cluj while the UNS path said Essen, and one of the two
+			// had to move.
+			Instance->Isa95 = FFactoryIsa95Path{
+				SmtSeed::Enterprise, SmtSeed::Site, SmtSeed::Area,
+				SmtSeed::WorkCentre, DeviceId };
 		}
 		return Instance;
 	};
 
 	// Conveyor: aliases 1-4 then extras 5-11.
 	if (UFactoryMachineInstance* Instance = MakeInstance(
-		TEXT("I_Conveyor"), ConveyorType, TEXT("Conveyor"),
-		TEXT("Essen/Cluj/SMT/Line1/Conveyor")))
+		TEXT("I_Conveyor"), ConveyorType, TEXT("Conveyor")))
 	{
 		for (int32 Index = 1; Index <= 8; ++Index)
 		{
@@ -447,8 +460,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 
 	// COMPONENT_PLACER: 12-15 then extras 16-22.
 	if (UFactoryMachineInstance* Instance = MakeInstance(
-		TEXT("I_ComponentPlacer"), PlacerType, TEXT("COMPONENT_PLACER"),
-		TEXT("Essen/Cluj/SMT/Line1/ComponentPlacer")))
+		TEXT("I_ComponentPlacer"), PlacerType, TEXT("COMPONENT_PLACER")))
 	{
 		Instance->LayoutPosition = FVector2D(4.0, 0.0);
 		Instance->LayoutFootprint = FVector2D(2.0, 1.6);
@@ -458,8 +470,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 
 	// REFLOW_OVEN: 23-25 then extras 26-32.
 	if (UFactoryMachineInstance* Instance = MakeInstance(
-		TEXT("I_ReflowOven"), ThermalType, TEXT("REFLOW_OVEN"),
-		TEXT("Essen/Cluj/SMT/Line1/ReflowOven")))
+		TEXT("I_ReflowOven"), ThermalType, TEXT("REFLOW_OVEN")))
 	{
 		Instance->LayoutPosition = FVector2D(8.0, 0.0);
 		Instance->LayoutFootprint = FVector2D(4.0, 1.4);
@@ -469,8 +480,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 
 	// LASER_MARKING: 33-36 then extras 37-43.
 	if (UFactoryMachineInstance* Instance = MakeInstance(
-		TEXT("I_LaserMarking"), LaserType, TEXT("LASER_MARKING"),
-		TEXT("Essen/Cluj/SMT/Line1/LaserMarking")))
+		TEXT("I_LaserMarking"), LaserType, TEXT("LASER_MARKING")))
 	{
 		Instance->PartIds = {
 			TEXT("ACC-Inno-1"), TEXT("ACC-Inno-2"), TEXT("ACC-Inno-3"),
@@ -484,8 +494,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 	// AUTO_OPTICALINSP: 44-46 then extras 47-53.
 	// Adds its own measurements on top of the shared VisionInspection archetype.
 	if (UFactoryMachineInstance* Instance = MakeInstance(
-		TEXT("I_AutoOpticalInspection"), VisionType, TEXT("AUTO_OPTICALINSP"),
-		TEXT("Essen/Cluj/SMT/Line1/AOI")))
+		TEXT("I_AutoOpticalInspection"), VisionType, TEXT("AUTO_OPTICALINSP")))
 	{
 		Instance->AdditionalMetrics = {
 			MakeFloatMetric(TEXT("comp_position_offset_mm"), TEXT("mm"),
@@ -501,8 +510,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 
 	// SOLDER_INSP: 54-56 then extras 57-63.
 	if (UFactoryMachineInstance* Instance = MakeInstance(
-		TEXT("I_SolderInspection"), VisionType, TEXT("SOLDER_INSP"),
-		TEXT("Essen/Cluj/SMT/Line1/SPI")))
+		TEXT("I_SolderInspection"), VisionType, TEXT("SOLDER_INSP")))
 	{
 		Instance->AdditionalMetrics = {
 			MakeFloatMetric(TEXT("area"), TEXT("mm2"),
@@ -518,8 +526,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 
 	// SMT_LINE: 64 then extras 65-71.
 	if (UFactoryMachineInstance* Instance = MakeInstance(
-		TEXT("I_SmtLine"), LineType, TEXT("SMT_LINE"),
-		TEXT("Essen/Cluj/SMT/Line1")))
+		TEXT("I_SmtLine"), LineType, TEXT("SMT_LINE")))
 	{
 		Instance->LayoutPosition = FVector2D(0.0, 0.0);
 		Instance->LayoutFootprint = FVector2D(16.0, 3.0);
@@ -534,8 +541,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 	// =====================================================================
 
 	if (UFactoryMachineInstance* Instance = MakeInstance(
-		TEXT("I_PcbCleaner"), ManualType, TEXT("PCB_CLEANER"),
-		TEXT("Essen/Cluj/SMT/Line1/PcbCleaner")))
+		TEXT("I_PcbCleaner"), ManualType, TEXT("PCB_CLEANER")))
 	{
 		Instance->LayoutPosition = FVector2D(14.0, 0.0);
 		Instance->LayoutFootprint = FVector2D(1.2, 1.0);
@@ -544,8 +550,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 	}
 
 	if (UFactoryMachineInstance* Instance = MakeInstance(
-		TEXT("I_SolderPasteStation"), ManualType, TEXT("SOLDER_PASTE_STATION"),
-		TEXT("Essen/Cluj/SMT/Line1/SolderPaste")))
+		TEXT("I_SolderPasteStation"), ManualType, TEXT("SOLDER_PASTE_STATION")))
 	{
 		Instance->LayoutPosition = FVector2D(5.0, 0.0);
 		Instance->LayoutFootprint = FVector2D(1.8, 1.2);

@@ -345,6 +345,8 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 
 	int32 TotalPlaced = 0;
 	int32 TotalOperators = 0;
+	/// Material slots repainted in a machine finish, for the summary line.
+	int32 TotalSlotsFinished = 0;
 
 	for (int32 Line = 1; Line <= Lines; ++Line)
 	{
@@ -383,7 +385,7 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 			{
 				FActorSpawnParameters StationParams = Params;
 				StationParams.Name = MakeUniqueObjectName(
-					World->PersistentLevel, StationClass, FName(*Instance->DeviceId));
+					World->PersistentLevel, StationClass, FName(*Instance->GetLevelLabel()));
 
 				// Turned a quarter so the machines face across a line that runs
 				// along Y rather than the X they were authored for.
@@ -392,8 +394,9 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 
 				if (AActor* Actor = World->SpawnActor<AActor>(StationClass, Where, StationParams))
 				{
-					Actor->SetActorLabel(Instance->DeviceId);
+					Actor->SetActorLabel(Instance->GetLevelLabel());
 					++TotalPlaced;
+					TotalSlotsFinished += FactoryShapeMaterials::ApplyMachineFinish(Actor);
 
 					// The UR5 drives its arm from a separate Goal actor holding the
 					// waypoint path, and the two hold references to each other.
@@ -408,7 +411,7 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 							GoalParams.SpawnCollisionHandlingOverride =
 								ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 							GoalParams.Name = MakeUniqueObjectName(World->PersistentLevel,
-								GoalClass, FName(*(Instance->DeviceId + TEXT("_Goal"))));
+								GoalClass, FName(*(Instance->GetLevelLabel() + TEXT("_Goal"))));
 
 							FTransform GoalWhere = Where;
 							GoalWhere.SetLocation(Where.GetLocation() + FVector(0.0, 0.0, 60.0));
@@ -416,7 +419,7 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 							if (AActor* Goal = World->SpawnActor<AActor>(
 								GoalClass, GoalWhere, GoalParams))
 							{
-								Goal->SetActorLabel(Instance->DeviceId + TEXT("_Goal"));
+								Goal->SetActorLabel(Instance->GetLevelLabel() + TEXT("_Goal"));
 								SetActorObjectProperty(Actor, TEXT("Goal Ref"), Goal);
 								SetActorObjectProperty(Goal, TEXT("UR5e Ref"), Actor);
 							}
@@ -445,7 +448,10 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 			// Stops sit on the belt centreline even for machines set back from
 			// it: the robot reaches across to the unit, not the other way round.
 			FFactoryLineStop Stop;
-			Stop.DeviceId = Instance->DeviceId;
+			// The full UNS path, not the bare device id: every line runs the same
+			// station names, so "ReflowOven" alone would resolve to whichever
+			// line registered first and all three lines would drive one machine.
+			Stop.DeviceId = Instance->GetUnsPath();
 			Stop.PositionMetres = FVector2D(LaneX, LineStartY + Instance->LayoutPosition.X);
 			Stop.StageOnComplete = Station.StageOnComplete;
 			Stops.Add(Stop);
@@ -460,8 +466,8 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 					FTransform(FRotator(0.0, 180.0, 0.0),
 						ToWorld(FVector2D(Instance->LayoutPosition.X, -1.2))), Params))
 				{
-					Worker->ServedDeviceId = Instance->DeviceId;
-					Worker->SetActorLabel(FString::Printf(TEXT("Operator_%s"), *Instance->DeviceId));
+					Worker->ServedDeviceId = Instance->GetUnsPath();
+					Worker->SetActorLabel(FString::Printf(TEXT("Operator_%s"), *Instance->GetLevelLabel()));
 					++TotalOperators;
 				}
 			}
@@ -503,7 +509,13 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 			Belt->Stops = Stops;
 			Belt->EntryMetres = FVector2D(LaneX, LineStartY + FirstX - 2.0);
 			Belt->ExitMetres = FVector2D(LaneX, LineStartY + LastX + 2.0);
-			Belt->ConveyorDeviceId = FString::Printf(TEXT("L%d_CONVEYOR"), Line);
+			// Qualified for the same reason the stops are: every line has a
+			// device called "Conveyor".
+			if (const UFactoryMachineInstance* ConveyorInstance =
+				LoadInstance(Line, TEXT("CONVEYOR")))
+			{
+				Belt->ConveyorDeviceId = ConveyorInstance->GetUnsPath();
+			}
 			// Staggered so the lines do not all release on the same beat, which
 			// would make three lines behave like one wide one.
 			Belt->TaktSeconds = 18.0f + Line * 1.5f;
@@ -652,7 +664,8 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 	}
 
 	UE_LOG(LogFactorySim, Display,
-		TEXT("Built %s: %d line(s), %d device(s), %d operator(s), %d hall part(s)"),
-		*LevelPath, Lines, TotalPlaced, TotalOperators, HallParts);
+		TEXT("Built %s: %d line(s), %d device(s), %d operator(s), %d hall part(s), "
+			 "%d slot(s) in a machine finish"),
+		*LevelPath, Lines, TotalPlaced, TotalOperators, HallParts, TotalSlotsFinished);
 	return 0;
 }
