@@ -29,24 +29,24 @@ namespace PlantRender
 	/**
 	 * One waypoint on the camera path, in metres and degrees.
 	 *
-	 * A slow travelling shot down the outboard side of line 1, looking
-	 * diagonally across all three.
+	 * An overview: down the hall's centreline, above the middle line, looking
+	 * along its length.
 	 *
 	 * Where the camera can go is decided by the hall, which ships as a storage
-	 * warehouse: the build culls its racking only from a 2.2 m corridor either
-	 * side of each lane centre (-5, 0 and +5 m), leaving the strips
-	 * [-7.2,-2.8], [-2.2,2.2] and [2.8,7.2] clear and everything between them
-	 * full of shelving. Two earlier paths found that out the hard way. An aisle
-	 * at x = -2.5 m looks like the gap between two lines but is exactly where
-	 * racking is allowed to stand, and half the frame was a shelf board. Going
-	 * over the top at 4.5 m is no better: the uprights run higher than that, so
-	 * the camera ends up threading between racking beams and roof trusses.
+	 * warehouse. Its racking is culled only from a 2.2 m corridor either side of
+	 * each lane centre (-5, 0 and +5 m), leaving the strips [-7.2,-2.8],
+	 * [-2.2,2.2] and [2.8,7.2] clear and everything between them full of
+	 * shelving. And the building is low: the roof ridge measures under 5 m, so
+	 * anything above about 4.4 m is outside looking at the roof rather than
+	 * inside looking at the plant. A genuine bird's-eye does not fit in this
+	 * building.
 	 *
-	 * x = -6.6 m is inside the lane 1 corridor, roughly 1.6 m outboard of that
-	 * line's machines and 2 m off the wall, and the corridor is cleared for the
-	 * lines' whole length. Yaw stays between 50 and 81 degrees so the shot looks
-	 * across the lines rather than straight down the hall -- past about 90
-	 * degrees the inter-lane racking swings in and fills the right of frame.
+	 * What does fit is x = 0, which is both the middle of the factory and a
+	 * cleared corridor, at 3.9-4.4 m: over the top of line 2's machines, under
+	 * the trusses, with the racking rows either side framing the shot and the
+	 * lines receding down the hall. The travel stops around y = -1 m because
+	 * past that the racking ends and the view opens onto the end wall and the
+	 * loading doors, which is a weaker picture than the framed one.
 	 */
 	struct FWaypoint
 	{
@@ -55,16 +55,17 @@ namespace PlantRender
 		double Pitch, Yaw;   // degrees
 	};
 
-	// About 0.8 m/s -- a walking pace alongside the line, with the yaw opening
-	// out as it goes so the far lines come into frame.
+	// About 1 m/s down the centreline, easing out of a slight crane-down. The
+	// yaw drifts by three degrees over the whole shot -- not enough to read as a
+	// pan, enough that the frame is never completely static.
 	const FWaypoint Path[] = {
-		{  0.0, -6.9, -15.5, 3.10,  -8.0, 50.0 },
-		{  2.5, -6.8, -14.0, 3.05,  -7.0, 57.0 },
-		{  5.0, -6.8, -12.2, 3.00,  -6.5, 63.0 },
-		{  7.5, -6.7, -10.2, 2.96,  -6.0, 69.0 },
-		{ 10.0, -6.7,  -8.2, 2.93,  -6.0, 74.0 },
-		{ 12.0, -6.6,  -6.4, 2.91,  -6.0, 78.0 },
-		{ 13.5, -6.6,  -5.0, 2.90,  -6.0, 81.0 },
+		{  0.0, 0.0, -15.5, 4.35, -21.0, 90.0 },
+		{  2.5, 0.0, -13.2, 4.25, -20.0, 90.5 },
+		{  5.0, 0.0, -10.6, 4.15, -19.0, 91.0 },
+		{  7.5, 0.0,  -8.0, 4.05, -18.0, 91.5 },
+		{ 10.0, 0.0,  -5.4, 3.98, -17.0, 92.0 },
+		{ 12.0, 0.0,  -3.2, 3.92, -16.0, 92.5 },
+		{ 13.5, 0.0,  -1.5, 3.88, -15.0, 93.0 },
 	};
 
 	constexpr double MetresToCm = 100.0;
@@ -165,8 +166,12 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 		? FMath::Clamp(FCString::Atod(*ParamMap[TEXT("Seconds")]), 1.0, 120.0)
 		: Path[UE_ARRAY_COUNT(Path) - 1].TimeSeconds;
 
+	// Up to 120 so a high-frame-rate pass is available, defaulting to 60: that
+	// is smooth, and every player handles it. Above about 60 the returns are
+	// small and playback support gets patchy, so going higher is a deliberate
+	// choice rather than the default.
 	const int32 Fps = ParamMap.Contains(TEXT("Fps"))
-		? FMath::Clamp(FCString::Atoi(*ParamMap[TEXT("Fps")]), 12, 60) : 24;
+		? FMath::Clamp(FCString::Atoi(*ParamMap[TEXT("Fps")]), 12, 120) : 60;
 
 	const FIntPoint Resolution(
 		ParamMap.Contains(TEXT("Width")) ? FCString::Atoi(*ParamMap[TEXT("Width")]) : 1920,
