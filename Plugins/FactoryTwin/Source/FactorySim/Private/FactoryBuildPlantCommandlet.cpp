@@ -581,12 +581,13 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 	if (ASkyLight* Sky = World->SpawnActor<ASkyLight>(FVector(0.0, 0.0, 500.0), FRotator::ZeroRotator))
 	{
 		Sky->SetActorLabel(TEXT("SkyLight"));
-		// Dimmed hard. At full strength the captured sky is the dominant light
-		// indoors, and since what it captures is a blue sky it put a cold cast
-		// over every machine in the hall -- the stations rendered bluish grey no
-		// matter what the lamps were doing. Turning the lamps warm only works
-		// once this stops overpowering them.
-		Sky->GetLightComponent()->SetIntensity(0.28f);
+		// Dimmed, but not out. At full strength the captured sky was the dominant
+		// light indoors and put a cold cast over every machine in the hall, so no
+		// amount of warmth at the lamps read as warm. Cutting it to a fifth went
+		// too far the other way and the whole hall came out sepia: with nothing
+		// neutral left to balance them, the lamps just tinted everything. This is
+		// the level where white surfaces still read as white.
+		Sky->GetLightComponent()->SetIntensity(0.55f);
 		// Captured once. Nothing in this sky moves, so re-rendering it every
 		// frame buys nothing.
 		Sky->GetLightComponent()->bRealTimeCapture = false;
@@ -616,8 +617,8 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 						// eye is less sensitive. This is what actually makes the
 						// hall look lit rather than merely visible.
 						Light->bUseTemperature = true;
-						Light->SetTemperature(3000.0f);
-						Light->SetIntensity(52000.0f);
+						Light->SetTemperature(3600.0f);
+						Light->SetIntensity(40000.0f);
 						Light->SetAttenuationRadius(1500.0f);
 						// Fill only; the sun casts the shadows. Twelve
 						// shadow-casting lamps would look better still and cost
@@ -650,7 +651,7 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 		// the daylight coming through the roof gets carried along too, instead
 		// of leaving cold patches under every skylight.
 		Settings.bOverride_WhiteTemp = true;
-		Settings.WhiteTemp = 7400.0f;
+		Settings.WhiteTemp = 6800.0f;
 
 		// A little bloom off the lamps and the polished panels. Enough to feel
 		// like a lit room, not enough to wash out the stack lights.

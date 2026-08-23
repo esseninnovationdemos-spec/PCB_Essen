@@ -29,14 +29,24 @@ namespace PlantRender
 	/**
 	 * One waypoint on the camera path, in metres and degrees.
 	 *
-	 * The path runs up the aisle between lane 1 (x = -5 m) and lane 2 (x = 0 m),
-	 * which the build keeps clear: the hall ships as a storage warehouse and its
-	 * racking is culled from a 2.2 m corridor either side of every lane. Staying
-	 * on x = -2.5 m therefore stays between two cleared corridors rather than
-	 * inside the racking that a straight push-in ran into.
+	 * A slow travelling shot down the outboard side of line 1, looking
+	 * diagonally across all three.
 	 *
-	 * Lines occupy y = -13 m to +13 m, so the shot starts behind the head of the
-	 * lines and ends past the far end.
+	 * Where the camera can go is decided by the hall, which ships as a storage
+	 * warehouse: the build culls its racking only from a 2.2 m corridor either
+	 * side of each lane centre (-5, 0 and +5 m), leaving the strips
+	 * [-7.2,-2.8], [-2.2,2.2] and [2.8,7.2] clear and everything between them
+	 * full of shelving. Two earlier paths found that out the hard way. An aisle
+	 * at x = -2.5 m looks like the gap between two lines but is exactly where
+	 * racking is allowed to stand, and half the frame was a shelf board. Going
+	 * over the top at 4.5 m is no better: the uprights run higher than that, so
+	 * the camera ends up threading between racking beams and roof trusses.
+	 *
+	 * x = -6.6 m is inside the lane 1 corridor, roughly 1.6 m outboard of that
+	 * line's machines and 2 m off the wall, and the corridor is cleared for the
+	 * lines' whole length. Yaw stays between 50 and 81 degrees so the shot looks
+	 * across the lines rather than straight down the hall -- past about 90
+	 * degrees the inter-lane racking swings in and fills the right of frame.
 	 */
 	struct FWaypoint
 	{
@@ -45,16 +55,16 @@ namespace PlantRender
 		double Pitch, Yaw;   // degrees
 	};
 
-	// Opens wide on the whole hall from the corner, swings into the aisle, then
-	// travels the length of the lines and settles looking across all three.
+	// About 0.8 m/s -- a walking pace alongside the line, with the yaw opening
+	// out as it goes so the far lines come into frame.
 	const FWaypoint Path[] = {
-		{  0.0, -7.0, -14.4, 2.85,  -8.0,  48.0 },
-		{  2.5, -6.2, -13.0, 2.80,  -7.0,  58.0 },
-		{  5.0, -4.4, -10.0, 2.70,  -5.0,  72.0 },
-		{  7.5, -2.5,  -5.0, 2.55,  -3.5,  86.0 },
-		{ 10.0, -2.5,   1.0, 2.45,  -3.0,  90.0 },
-		{ 12.0, -2.5,   6.0, 2.45,  -4.0, 100.0 },
-		{ 13.5, -2.6,   9.5, 2.55,  -6.0, 112.0 },
+		{  0.0, -6.9, -15.5, 3.10,  -8.0, 50.0 },
+		{  2.5, -6.8, -14.0, 3.05,  -7.0, 57.0 },
+		{  5.0, -6.8, -12.2, 3.00,  -6.5, 63.0 },
+		{  7.5, -6.7, -10.2, 2.96,  -6.0, 69.0 },
+		{ 10.0, -6.7,  -8.2, 2.93,  -6.0, 74.0 },
+		{ 12.0, -6.6,  -6.4, 2.91,  -6.0, 78.0 },
+		{ 13.5, -6.6,  -5.0, 2.90,  -6.0, 81.0 },
 	};
 
 	constexpr double MetresToCm = 100.0;
