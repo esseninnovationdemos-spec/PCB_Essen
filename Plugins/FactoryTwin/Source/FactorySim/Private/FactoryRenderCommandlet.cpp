@@ -335,7 +335,9 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 	{
 		Output->OutputResolution = Resolution;
 		Output->OutputDirectory.Path = TEXT("{project_dir}/Saved/Renders/");
-		Output->FileNameFormat = TEXT("PlantFlythrough");
+		// The frame rate is in the name so passes at different rates sit side by
+		// side instead of the last one silently replacing the one before it.
+		Output->FileNameFormat = FString::Printf(TEXT("PlantFlythrough_%dfps"), Fps);
 		Output->bUseCustomFrameRate = true;
 		Output->OutputFrameRate = DisplayRate;
 		Output->bOverrideExistingOutput = true;
