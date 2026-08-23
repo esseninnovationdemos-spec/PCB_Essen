@@ -45,6 +45,15 @@ public class FactorySim : ModuleRules
 					// editor-only data; UMaterialEditingLibrary is the supported
 					// way to do it and keeps the material compiling itself.
 					"MaterialEditor",
+					// Authoring the flythrough: a Level Sequence holding the
+					// camera's transform track, and the Movie Render Queue
+					// config that turns it into an MP4.
+					"CinematicCamera",
+					"LevelSequence",
+					"MovieScene",
+					"MovieSceneTracks",
+					"MovieRenderPipelineCore",
+					"MovieRenderPipelineRenderPasses",
 				}
 				);
 		}

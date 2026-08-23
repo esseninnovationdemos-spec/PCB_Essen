@@ -1,5 +1,7 @@
 #include "FactoryBuildPlantCommandlet.h"
 
+#include "CineCameraActor.h"
+#include "CineCameraComponent.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
@@ -569,12 +571,22 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 		Sun->SetActorLabel(TEXT("Sun"));
 		Sun->GetComponent()->SetIntensity(10.0f);
 		Sun->GetComponent()->DynamicShadowDistanceMovableLight = 6000.0f;
+		// Late-afternoon sun rather than noon. It contributes little inside --
+		// that is what the roof is for -- but what does reach the floor through
+		// the roof lights should agree with the lamps rather than fight them.
+		Sun->GetComponent()->bUseTemperature = true;
+		Sun->GetComponent()->Temperature = 4800.0f;
 	}
 	World->SpawnActor<ASkyAtmosphere>(FVector::ZeroVector, FRotator::ZeroRotator);
 	if (ASkyLight* Sky = World->SpawnActor<ASkyLight>(FVector(0.0, 0.0, 500.0), FRotator::ZeroRotator))
 	{
 		Sky->SetActorLabel(TEXT("SkyLight"));
-		Sky->GetLightComponent()->SetIntensity(1.0f);
+		// Dimmed hard. At full strength the captured sky is the dominant light
+		// indoors, and since what it captures is a blue sky it put a cold cast
+		// over every machine in the hall -- the stations rendered bluish grey no
+		// matter what the lamps were doing. Turning the lamps warm only works
+		// once this stops overpowering them.
+		Sky->GetLightComponent()->SetIntensity(0.28f);
 		// Captured once. Nothing in this sky moves, so re-rendering it every
 		// frame buys nothing.
 		Sky->GetLightComponent()->bRealTimeCapture = false;
@@ -598,9 +610,19 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 					if (UPointLightComponent* Light =
 						Cast<UPointLightComponent>(Bay->GetLightComponent()))
 					{
-						Light->SetIntensity(28000.0f);
-						Light->SetAttenuationRadius(1200.0f);
-						// Fill only; the sun casts the shadows.
+						// Warm white, and brighter to compensate: a 3000K lamp
+						// reads dimmer than a colourless one of the same
+						// intensity because so much of its output sits where the
+						// eye is less sensitive. This is what actually makes the
+						// hall look lit rather than merely visible.
+						Light->bUseTemperature = true;
+						Light->SetTemperature(3000.0f);
+						Light->SetIntensity(52000.0f);
+						Light->SetAttenuationRadius(1500.0f);
+						// Fill only; the sun casts the shadows. Twelve
+						// shadow-casting lamps would look better still and cost
+						// interactive frame rate in a level that is already
+						// heavy, so the trade stays where it was.
 						Light->SetCastShadows(false);
 					}
 				}
@@ -620,6 +642,42 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 		Settings.AutoExposureMaxBrightness = 8.0f;
 		Settings.bOverride_AutoExposureBias = true;
 		Settings.AutoExposureBias = 1.0f;
+
+		// Warm the grade on top of the warm lamps. WhiteTemp says what the
+		// camera should treat as white, so setting it above the 6500K default
+		// tells it the illuminant is bluer than it is and it compensates by
+		// pushing the image warm. Doing it here as well as at the lamps means
+		// the daylight coming through the roof gets carried along too, instead
+		// of leaving cold patches under every skylight.
+		Settings.bOverride_WhiteTemp = true;
+		Settings.WhiteTemp = 7400.0f;
+
+		// A little bloom off the lamps and the polished panels. Enough to feel
+		// like a lit room, not enough to wash out the stack lights.
+		Settings.bOverride_BloomIntensity = true;
+		Settings.BloomIntensity = 0.75f;
+	}
+
+	// The camera the flythrough drives. Placed here rather than spawned by the
+	// sequence so the sequence can simply possess it: a possessable binding to
+	// an actor that is in the level is stable, whereas a spawnable has to be
+	// authored through the binding system and would be one more thing to get
+	// wrong in a render that takes minutes to find out.
+	if (ACineCameraActor* Camera = World->SpawnActor<ACineCameraActor>(
+		FVector(-700.0, -1440.0, 285.0), FRotator(-8.0, 48.0, 0.0)))
+	{
+		Camera->SetActorLabel(TEXT("RenderCam"));
+		if (UCineCameraComponent* Lens = Camera->GetCineCameraComponent())
+		{
+			// Wide enough to hold three lines in frame from the aisle without
+			// the barrel-distorted look a very wide lens gives a long hall.
+			Lens->SetFieldOfView(75.0f);
+			Lens->Filmback.SensorWidth = 36.0f;
+			Lens->Filmback.SensorHeight = 20.25f;   // 16:9
+			// Deep focus. A shallow depth of field would throw away the far
+			// lines, which are the point of the shot.
+			Lens->FocusSettings.FocusMethod = ECameraFocusMethod::Disable;
+		}
 	}
 
 	// Inside the hall, in a corner, looking back down the lines. Derived from
