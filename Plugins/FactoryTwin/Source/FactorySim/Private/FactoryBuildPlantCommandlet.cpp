@@ -88,6 +88,24 @@ namespace PlantBuild
 
 	const FString InstanceFolder = TEXT("/Game/FactoryTwin/Instances/Plant");
 
+	/** Assigns an object-typed Blueprint variable on a spawned actor. */
+	bool SetActorObjectProperty(AActor* Actor, const FName PropertyName, UObject* Value)
+	{
+		if (Actor == nullptr)
+		{
+			return false;
+		}
+		FObjectPropertyBase* Property = CastField<FObjectPropertyBase>(
+			Actor->GetClass()->FindPropertyByName(PropertyName));
+		if (Property == nullptr)
+		{
+			return false;
+		}
+		Property->SetObjectPropertyValue(
+			Property->ContainerPtrToValuePtr<void>(Actor), Value);
+		return true;
+	}
+
 	UFactoryMachineInstance* LoadInstance(const int32 Line, const TCHAR* DeviceSuffix)
 	{
 		const FString Name = FString::Printf(TEXT("I_L%d_%s"), Line, DeviceSuffix);
@@ -180,8 +198,30 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 	// this building is 1.9 million triangles -- 89 times the project's other
 	// warehouse, for a smaller shell -- which is squarely the workload Nanite
 	// exists for, unlike the ten-thousand-triangle machines standing in it.
+	// Lanes run along the hall's length. A line packs to 27.5 m and the hall is
+	// 17.3 m across, so laid the other way each one would run out through a wall.
+	constexpr double LaneSpacing = 5.0;
+	constexpr double LineStartY = -13.0;
+
+	// The floor a line needs, plus room to stand at it. Anything the building
+	// keeps in here has to go: the hall ships as a storage warehouse, with
+	// racking and pallets spread across exactly the floor the lines want.
+	constexpr double CorridorHalfWidth = 2.2;
+	TArray<FBox> Corridors;
+	for (int32 Lane = 1; Lane <= Lines; ++Lane)
+	{
+		const double LaneX = (Lane - (Lines + 1) * 0.5) * LaneSpacing;
+		Corridors.Add(FBox(
+			FVector((LaneX - CorridorHalfWidth) * FactoryGrid::MetresToCm,
+			        (LineStartY - 2.0) * FactoryGrid::MetresToCm, -100.0),
+			FVector((LaneX + CorridorHalfWidth) * FactoryGrid::MetresToCm,
+			        (LineStartY + 30.0) * FactoryGrid::MetresToCm, 400.0)));
+	}
+
 	int32 HallParts = 0;
+	int32 HallSkipped = 0;
 	int32 NaniteEnabled = 0;
+	FBox HallBounds(ForceInit);
 	{
 		// Gathered from the folder rather than a list written here: the importer
 		// names the parts from the FBX's own node names, there are 28 of them,
@@ -230,6 +270,50 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 				TotalTriangles += Mesh->GetNumTriangles(0);
 			}
 
+			const FString PartName = Asset.AssetName.ToString();
+
+			// The shell and anything fixed to it stay whatever they overlap -- a
+			// line running through the floor is the floor's business, not a
+			// reason to delete the floor. Stairs, switchgear, the transformer and
+			// the air handling are part of the building too.
+			//
+			// The cull below is written as a corridor test because that is the
+			// right rule, but note it can only ever act on a whole prop type:
+			// the FBX batches every instance of a material into one mesh, so
+			// "the cardboard" is a single object spanning the hall rather than
+			// two hundred boxes that could be thinned individually.
+			const bool bBelongsToBuilding =
+				PartName.Contains(TEXT("rangka")) || PartName.Contains(TEXT("dinding"))
+				|| PartName.Contains(TEXT("lantai")) || PartName.Contains(TEXT("besi_lis"))
+				|| PartName.Contains(TEXT("gerbang")) || PartName.Contains(TEXT("cat_garis"))
+				|| PartName.Contains(TEXT("lampu")) || PartName.Contains(TEXT("kabel"))
+				|| PartName.Contains(TEXT("tangga")) || PartName.Contains(TEXT("trafo"))
+				|| PartName.Contains(TEXT("saklar")) || PartName.Contains(TEXT("AC"))
+				|| PartName.Contains(TEXT("PEMADAM")) || PartName.Contains(TEXT("KLLNG"))
+				|| PartName.Contains(TEXT("lemari")) || PartName.Contains(TEXT("meja"))
+				|| PartName.Contains(TEXT("ondo"));
+
+			const bool bStructural = bBelongsToBuilding;
+
+			if (!bStructural)
+			{
+				const FBox PartBox = Mesh->GetBoundingBox();
+				bool bInTheWay = false;
+				for (const FBox& Corridor : Corridors)
+				{
+					if (Corridor.Intersect(PartBox))
+					{
+						bInTheWay = true;
+						break;
+					}
+				}
+				if (bInTheWay)
+				{
+					++HallSkipped;
+					continue;
+				}
+			}
+
 			if (AStaticMeshActor* Piece = World->SpawnActor<AStaticMeshActor>(
 				FVector::ZeroVector, FRotator::ZeroRotator))
 			{
@@ -237,6 +321,15 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 				Piece->GetStaticMeshComponent()->SetStaticMesh(Mesh);
 				Piece->SetActorLabel(FString::Printf(TEXT("Hall_%s"), *Asset.AssetName.ToString()));
 				++HallParts;
+
+				// The shell is what bounds the level. Only the structure counts:
+				// a stack of boxes against a wall would drag the extent inward
+				// and put the viewing position inside the wall instead.
+				if (PartName.Contains(TEXT("rangka")) || PartName.Contains(TEXT("dinding"))
+					|| PartName.Contains(TEXT("lantai")))
+				{
+					HallBounds += Mesh->GetBoundingBox();
+				}
 			}
 		}
 
@@ -245,15 +338,10 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 			UEditorLoadingAndSavingUtils::SavePackages(ToSave, /*bOnlyDirty*/ false);
 		}
 		UE_LOG(LogFactorySim, Display,
-			TEXT("  hall: %d part(s), %lld triangles, Nanite switched on for %d"),
-			HallParts, TotalTriangles, NaniteEnabled);
+			TEXT("  hall: %d part(s) placed, %d skipped as standing in a line, "
+			     "%lld triangles, Nanite switched on for %d"),
+			HallParts, HallSkipped, TotalTriangles, NaniteEnabled);
 	}
-
-	// Lanes run along the hall's length. A line packs to roughly 27 m and the
-	// hall is 17 m across, so laid the other way each one would run out through
-	// a wall.
-	constexpr double LaneSpacing = 5.0;
-	constexpr double LineStartY = -13.0;
 
 	int32 TotalPlaced = 0;
 	int32 TotalOperators = 0;
@@ -306,6 +394,34 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 				{
 					Actor->SetActorLabel(Instance->DeviceId);
 					++TotalPlaced;
+
+					// The UR5 drives its arm from a separate Goal actor holding the
+					// waypoint path, and the two hold references to each other.
+					// Placed without one, its animation Blueprint reads a null
+					// Goal every frame and says so, once per frame, forever.
+					if (Actor->GetClass()->FindPropertyByName(TEXT("Goal Ref")) != nullptr)
+					{
+						if (UClass* GoalClass = LoadObject<UClass>(
+							nullptr, TEXT("/Game/UR5_DT/UR5/Goal_BP.Goal_BP_C")))
+						{
+							FActorSpawnParameters GoalParams;
+							GoalParams.SpawnCollisionHandlingOverride =
+								ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+							GoalParams.Name = MakeUniqueObjectName(World->PersistentLevel,
+								GoalClass, FName(*(Instance->DeviceId + TEXT("_Goal"))));
+
+							FTransform GoalWhere = Where;
+							GoalWhere.SetLocation(Where.GetLocation() + FVector(0.0, 0.0, 60.0));
+
+							if (AActor* Goal = World->SpawnActor<AActor>(
+								GoalClass, GoalWhere, GoalParams))
+							{
+								Goal->SetActorLabel(Instance->DeviceId + TEXT("_Goal"));
+								SetActorObjectProperty(Actor, TEXT("Goal Ref"), Goal);
+								SetActorObjectProperty(Goal, TEXT("UR5e Ref"), Actor);
+							}
+						}
+					}
 
 					// Machines placed from a Blueprint carry their own machine
 					// component; give it this line's instance so it publishes as
@@ -409,6 +525,31 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 			Line, LaneX, Stops.Num(), LastX - FirstX);
 	}
 
+	// The line controller. Without it nothing calls StartLine, so the edge node
+	// never announces, no device registers, and every production line sits
+	// waiting on an OnLineOnlineChanged that will not come -- which is exactly
+	// what the first build of this level did: 54 machines and complete silence.
+	if (UClass* ManagerClass = LoadObject<UClass>(
+		nullptr, TEXT("/Game/BP_MQTT_Manager.BP_MQTT_Manager_C")))
+	{
+		FActorSpawnParameters ManagerParams;
+		ManagerParams.SpawnCollisionHandlingOverride =
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		if (AActor* Manager = World->SpawnActor<AActor>(ManagerClass,
+			FTransform(FRotator::ZeroRotator,
+				FactoryGrid::MetresToWorld(FVector2D(-7.0, 0.0))), ManagerParams))
+		{
+			Manager->SetActorLabel(TEXT("LineController"));
+			UE_LOG(LogFactorySim, Display, TEXT("  line controller placed"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogFactorySim, Warning,
+			TEXT("  BP_MQTT_Manager not found; the lines will not start on their own"));
+	}
+
 	// Daylight outside, and bay lighting inside because a roof keeps the sun out.
 	if (ADirectionalLight* Sun = World->SpawnActor<ADirectionalLight>(
 		FVector(0.0, 0.0, 800.0), FRotator(-50.0, -35.0, 0.0)))
@@ -469,10 +610,39 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 		Settings.AutoExposureBias = 1.0f;
 	}
 
-	if (APlayerStart* Start = World->SpawnActor<APlayerStart>(
-		FVector(-900.0, -1900.0, 250.0), FRotator(-8.0, 55.0, 0.0)))
+	// Inside the hall, in a corner, looking back down the lines. Derived from
+	// the building rather than written down: the coordinates carried over from
+	// level3, which had no walls, and put the starting view outside this one on
+	// both axes -- the level opened looking at the outside of a shed.
 	{
-		Start->SetActorLabel(TEXT("ViewingPosition"));
+		FVector Where(-700.0, -1400.0, 200.0);
+		FRotator Facing(-6.0, 55.0, 0.0);
+
+		if (HallBounds.IsValid)
+		{
+			// A couple of metres in off the corner so the near wall is behind
+			// the camera rather than through it.
+			constexpr double Inset = 200.0;
+			Where = FVector(
+				HallBounds.Min.X + Inset,
+				HallBounds.Min.Y + Inset,
+				HallBounds.Min.Z + 200.0);
+
+			// Aim at the middle of the floor, which is where the lines are.
+			const FVector Centre(
+				HallBounds.GetCenter().X, HallBounds.GetCenter().Y, Where.Z);
+			Facing = (Centre - Where).Rotation();
+			Facing.Pitch = -6.0;
+		}
+
+		if (APlayerStart* Start = World->SpawnActor<APlayerStart>(Where, Facing))
+		{
+			Start->SetActorLabel(TEXT("ViewingPosition"));
+			UE_LOG(LogFactorySim, Display,
+				TEXT("  viewing position at (%.1f, %.1f) m, facing %.0f deg"),
+				Where.X / FactoryGrid::MetresToCm, Where.Y / FactoryGrid::MetresToCm,
+				Facing.Yaw);
+		}
 	}
 
 	if (!UEditorLoadingAndSavingUtils::SaveMap(World, LevelPath))
