@@ -3,6 +3,8 @@
 #include "CineCameraActor.h"
 #include "CineCameraComponent.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/SceneCaptureComponent2D.h"
+#include "Components/LightComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/SkyLightComponent.h"
@@ -349,6 +351,10 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 	int32 TotalOperators = 0;
 	/// Material slots repainted in a machine finish, for the summary line.
 	int32 TotalSlotsFinished = 0;
+	/// SceneCapture components switched off free-running, for the summary line.
+	int32 TotalCapturesTamed = 0;
+	/// Station-internal lights switched to non-shadow-casting.
+	int32 TotalLightsUnshadowed = 0;
 
 	for (int32 Line = 1; Line <= Lines; ++Line)
 	{
@@ -399,6 +405,54 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 					Actor->SetActorLabel(Instance->GetLevelLabel());
 					++TotalPlaced;
 					TotalSlotsFinished += FactoryShapeMaterials::ApplyMachineFinish(Actor);
+
+					// Seven of the station Blueprints carry an inspection
+					// monitor backed by a SceneCaptureComponent2D, and each one
+					// re-renders the whole scene every frame. Profiled at 42.3 ms
+					// across the twenty-one placed stations -- 76% of a 55.9 ms
+					// frame, against 14.4 ms for the actual player view. Nothing
+					// reads these targets at a glance; the monitors are a few
+					// centimetres of screen space on a machine panel.
+					//
+					// Left enabled but no longer free-running: they capture when
+					// something explicitly asks, so the cost is paid on demand
+					// rather than 60 times a second.
+					TArray<USceneCaptureComponent2D*> Captures;
+					Actor->GetComponents<USceneCaptureComponent2D>(Captures);
+					for (USceneCaptureComponent2D* Capture : Captures)
+					{
+						if (Capture == nullptr)
+						{
+							continue;
+						}
+						Capture->bCaptureEveryFrame = false;
+						Capture->bCaptureOnMovement = false;
+						// Without this the capture keeps a full set of rendering
+						// state resident per component even while idle.
+						Capture->bAlwaysPersistRenderingState = false;
+						++TotalCapturesTamed;
+					}
+
+					// Task lights inside the bench Blueprints cast cubemap
+					// shadows. Each one costs 1.8-3.2 ms -- for a 32x32 cubemap,
+					// so the price is scene traversal per face, not resolution --
+					// and six benches were spending 16 ms of a 20.5 ms
+					// ShadowDepths pass between them. The sun, by comparison,
+					// costs 3.05 ms for the whole hall.
+					//
+					// They stay lit; they just stop casting. Same trade already
+					// made for the bay lamps: point lights here are fill, and
+					// Lumen supplies the contact darkening that sells the shape.
+					TArray<ULightComponent*> Lights;
+					Actor->GetComponents<ULightComponent>(Lights);
+					for (ULightComponent* Light : Lights)
+					{
+						if (Light != nullptr && Light->CastShadows)
+						{
+							Light->SetCastShadows(false);
+							++TotalLightsUnshadowed;
+						}
+					}
 
 					// The UR5 drives its arm from a separate Goal actor holding the
 					// waypoint path, and the two hold references to each other.
@@ -520,7 +574,15 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 			}
 			// Staggered so the lines do not all release on the same beat, which
 			// would make three lines behave like one wide one.
-			Belt->TaktSeconds = 18.0f + Line * 1.5f;
+			//
+			// Seconds between releases, so this sets how full the line runs. At
+			// the original ~20s a unit entered every twenty seconds across
+			// seventeen stations and the line was almost always empty: the andon
+			// board showed IDLE nearly everywhere and looked broken rather than
+			// quiet. Around 5s keeps roughly a dozen units in flight, which
+			// reads as a working plant and still leaves the slowest station
+			// visibly constraining the ones upstream of it.
+			Belt->TaktSeconds = 5.0f + Line * 0.5f;
 
 			// Only the first line puts a panel up: three overlapping panels
 			// would be unreadable, and they all report the same plant.
@@ -570,7 +632,14 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 	{
 		Sun->SetActorLabel(TEXT("Sun"));
 		Sun->GetComponent()->SetIntensity(10.0f);
-		Sun->GetComponent()->DynamicShadowDistanceMovableLight = 6000.0f;
+		// 20 m of cascades over two splits, not 60 m over four. ShadowDepths
+		// profiled at 9.16 ms -- 64% of the 14.4 ms player view -- for a light
+		// contributing 10 lux through a closed roof. The hall is 17 m across, so
+		// cascades reaching 60 m were shadowing empty ground outside the
+		// building, and the bay lamps are fill-only and cast nothing.
+		Sun->GetComponent()->DynamicShadowDistanceMovableLight = 2000.0f;
+		Sun->GetComponent()->DynamicShadowCascades = 2;
+		Sun->GetComponent()->CascadeDistributionExponent = 2.0f;
 		// Late-afternoon sun rather than noon. It contributes little inside --
 		// that is what the roof is for -- but what does reach the floor through
 		// the roof lights should agree with the lamps rather than fight them.
@@ -724,7 +793,9 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 
 	UE_LOG(LogFactorySim, Display,
 		TEXT("Built %s: %d line(s), %d device(s), %d operator(s), %d hall part(s), "
-			 "%d slot(s) in a machine finish"),
-		*LevelPath, Lines, TotalPlaced, TotalOperators, HallParts, TotalSlotsFinished);
+			 "%d slot(s) in a machine finish, %d scene capture(s) throttled, "
+			 "%d light(s) unshadowed"),
+		*LevelPath, Lines, TotalPlaced, TotalOperators, HallParts, TotalSlotsFinished,
+		TotalCapturesTamed, TotalLightsUnshadowed);
 	return 0;
 }
