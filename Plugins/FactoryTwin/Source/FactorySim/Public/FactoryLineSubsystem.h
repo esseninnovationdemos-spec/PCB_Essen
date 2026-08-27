@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FactorySimTypes.h"
 #include "SparkplugEdgeNode.h"
 #include "Subsystems/WorldSubsystem.h"
 
@@ -148,6 +149,28 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Factory Twin")
 	UFactoryMachineComponent* FindMachine(const FString& DeviceIdOrUnsPath) const;
 
+	// --- External control -------------------------------------------------
+
+	/**
+	 * Switches who sequences the stations, propagating it to every machine.
+	 *
+	 * Also published per station as the `control_mode` metric, so an operator
+	 * screen never has to infer the mode from behaviour.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin|Control")
+	void SetControlMode(EFactoryControlMode NewMode);
+
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Control")
+	EFactoryControlMode GetControlMode() const { return ControlMode; }
+
+	/** True when the followed PLC has been heard from inside the timeout. */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Control")
+	bool IsPlcOnline() const;
+
+	/** Edge node id being followed, or empty when following nothing. */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Control")
+	FString GetPlcEdgeNodeId() const { return PlcEdgeNodeId; }
+
 	/** Called by machine components on BeginPlay. */
 	void RegisterMachine(UFactoryMachineComponent* Machine);
 	void UnregisterMachine(UFactoryMachineComponent* Machine);
@@ -173,6 +196,85 @@ private:
 
 	UFUNCTION()
 	void HandleNodeCommand(const FSparkplugPayload& Payload);
+
+	/** DCMD aimed at one of our devices, from a Sparkplug primary application. */
+	UFUNCTION()
+	void HandleDeviceCommand(const FString& DeviceId, const FSparkplugPayload& Payload);
+
+	/** DATA from the followed PLC edge node. */
+	UFUNCTION()
+	void HandleForeignNodeData(
+		ESparkplugMessageType MessageType,
+		const FString& EdgeNodeId,
+		const FString& DeviceId,
+		const FSparkplugPayload& Payload);
+
+	/**
+	 * Applies one command metric to one station.
+	 *
+	 * @param TargetKey      Edge-bookkeeping key, unique per station+command.
+	 * @param bEdgeSensitive True when reading a followed PLC state stream, where
+	 *                       the same tag set is republished every scan and only
+	 *                       a change means anything. False for DCMD, where each
+	 *                       message is itself a discrete command -- two
+	 *                       identical writes are two triggers, and treating them
+	 *                       as an edge would silently drop the second.
+	 * @param bSeedOnly      True for BIRTH: record the value but do not act on
+	 *                       it, so a birth certificate carrying Trigger=1 does
+	 *                       not fire a cycle on every reconnect.
+	 */
+	void ApplyStationCommand(
+		UFactoryMachineComponent* Machine,
+		const FString& TargetKey,
+		const FString& CommandName,
+		const FSparkplugMetric& Metric,
+		bool bEdgeSensitive,
+		bool bSeedOnly);
+
+	/**
+	 * Splits a followed PLC tag name into the station it addresses and the
+	 * command it carries.
+	 *
+	 * Needed because a PLC publishes flat tags and cannot name them freely: PAC
+	 * Control permits only alphanumerics and underscore, so a groov EPIC sends
+	 * `Line1_PIN_INSERTION_trigger` where a broker-native controller would send
+	 * `Line1/PIN_INSERTION/trigger`. Splitting on the separator cannot tell
+	 * those apart, because the station ids contain underscores themselves --
+	 * `PIN_INSERTION` would arrive as two segments.
+	 *
+	 * So the name is read from the right: strip a recognised command word off
+	 * the end, match what remains against the station ids actually registered,
+	 * longest first so `PIN_CHECK` is not shadowed by a shorter id ending the
+	 * same way -- then require what is *still* left to name that station's edge
+	 * node. That last step is not optional here: this plant runs three lines
+	 * with identical station names, so `LOADER` alone matches three machines and
+	 * a `Line1_` tag would be as likely to cycle Line3.
+	 *
+	 * @param OutMachine   The station addressed, or null for a line-level
+	 *                     command such as new_material.
+	 * @param OutTargetKey Edge-bookkeeping key, qualified by edge node so the
+	 *                     three lines' identically named stations do not share
+	 *                     one trigger history.
+	 * @return False when the name carries no command word at all, which is the
+	 *         normal case for a PLC also publishing ordinary process tags.
+	 */
+	bool ResolveCommandTarget(
+		const FString& MetricName,
+		UFactoryMachineComponent*& OutMachine,
+		FString& OutTargetKey,
+		FString& OutCommand) const;
+
+	/** Applies a node-level command: new material, or a mode change. */
+	void ApplyLineCommand(
+		const FString& CommandName,
+		const FSparkplugMetric& Metric,
+		bool bEdgeSensitive);
+
+	/** Starts or stops following the configured PLC node, per current settings. */
+	void RefreshPlcFollowing();
+
+	/** Drops the line back to local takt when the PLC has gone quiet. */
+	void CheckPlcWatchdog();
 
 	/** Brings up one edge node per work centre and announces its devices. */
 	void BeginEdgeNodeSession();
@@ -209,6 +311,26 @@ private:
 
 	/** Held between StartLineWithConfig and the deferred BeginEdgeNodeSession. */
 	FSparkplugEdgeNodeConfig PendingConfig;
+
+	/** Who currently sequences the stations. */
+	EFactoryControlMode ControlMode = EFactoryControlMode::Local;
+
+	/** Peer edge node being followed. Empty means DCMD-only. */
+	FString PlcEdgeNodeId;
+
+	/** Platform seconds when the PLC last spoke. Zero means never. */
+	double LastPlcMessageSeconds = 0.0;
+
+	/**
+	 * Last value seen per "<device>|<command>".
+	 *
+	 * Triggers are edge-sensitive, not level-sensitive: a PLC republishing its
+	 * whole tag set every scan would otherwise re-fire every station on every
+	 * message.
+	 */
+	TMap<FString, int64> LastCommandValues;
+
+	FTimerHandle PlcWatchdogTimer;
 
 	FTimerHandle AutoProductionTimer;
 	float AutoProductionInterval = 0.0f;

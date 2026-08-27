@@ -256,6 +256,64 @@ namespace FactorySyntheticMetrics
 	FACTORYSIM_API TArray<FString> GetAll();
 }
 
+/**
+ * Who decides when a station cycles.
+ *
+ * Wire-visible: published as the `control_mode` metric so an operator screen can
+ * show which one is in force without inferring it from behaviour.
+ */
+UENUM(BlueprintType)
+enum class EFactoryControlMode : uint8
+{
+	/** The line runs itself on takt. A controller may still gate stations. */
+	Local = 0,
+	/** Stations cycle only when an external controller triggers them. */
+	External = 1
+};
+
+/**
+ * Metrics describing this station's controllability, published alongside the
+ * process metrics so a controller can close a handshake.
+ *
+ * Deliberately absent from FactorySyntheticMetrics::GetAll(): that list fixes
+ * the historical alias allocation order, and adding to it would renumber every
+ * alias after the insertion point and break the downstream mapping. These carry
+ * alias 0, which the encoder omits, so they travel by name only.
+ */
+namespace FactoryControlMetrics
+{
+	/** Idle, enabled, unheld and unfaulted -- a trigger would be accepted now. */
+	FACTORYSIM_API extern const FString Ready;
+	/** A cycle is in progress. */
+	FACTORYSIM_API extern const FString Busy;
+	FACTORYSIM_API extern const FString StationEnabled;
+	FACTORYSIM_API extern const FString ControlMode;
+}
+
+/**
+ * Command metric names honoured on an inbound DCMD, and recognised as the
+ * trailing segment of a followed PLC's tag names.
+ *
+ * The "Station Control/" prefix mirrors the spec's own "Node Control/" reserved
+ * names, so a controller browsing the birth certificate can tell commands from
+ * process data at a glance.
+ */
+namespace FactoryControlCommands
+{
+	/** Rising edge starts one cycle. Bool pulse or monotonic counter both work. */
+	FACTORYSIM_API extern const FString Trigger;
+	/** Zero blocks the station; non-zero releases it. */
+	FACTORYSIM_API extern const FString Enable;
+	/** Non-zero holds the station after the current cycle finishes. */
+	FACTORYSIM_API extern const FString Hold;
+	/** Rising edge clears a fault. */
+	FACTORYSIM_API extern const FString Reset;
+	/** Node-level: releases one board to the line. */
+	FACTORYSIM_API extern const FString NewMaterial;
+	/** Node-level: "local" or "external". */
+	FACTORYSIM_API extern const FString Mode;
+}
+
 /** Event names published in the `event_type` metric. */
 namespace FactoryEventTypes
 {

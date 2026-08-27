@@ -27,6 +27,24 @@ namespace FactorySyntheticMetrics
 	}
 }
 
+namespace FactoryControlMetrics
+{
+	const FString Ready          = TEXT("ready");
+	const FString Busy           = TEXT("busy");
+	const FString StationEnabled = TEXT("station_enabled");
+	const FString ControlMode    = TEXT("control_mode");
+}
+
+namespace FactoryControlCommands
+{
+	const FString Trigger     = TEXT("Station Control/Trigger");
+	const FString Enable      = TEXT("Station Control/Enable");
+	const FString Hold        = TEXT("Station Control/Hold");
+	const FString Reset       = TEXT("Station Control/Reset");
+	const FString NewMaterial = TEXT("new_material");
+	const FString Mode        = TEXT("Line Control/Mode");
+}
+
 namespace FactoryEventTypes
 {
 	const FString Idle          = TEXT("IDLE");

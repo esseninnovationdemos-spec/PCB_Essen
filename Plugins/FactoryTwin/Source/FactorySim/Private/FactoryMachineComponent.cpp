@@ -392,7 +392,7 @@ void UFactoryMachineComponent::PublishSample(
 
 	TArray<FSparkplugMetric> Metrics;
 	const UFactoryMachineArchetype* Archetype = Instance->Archetype;
-	Metrics.Reserve(EffectiveMetrics.Num() + 7);
+	Metrics.Reserve(EffectiveMetrics.Num() + 11);
 
 	for (const FFactoryMetricDefinition& Definition : EffectiveMetrics)
 	{
@@ -484,6 +484,10 @@ void UFactoryMachineComponent::PublishSample(
 	EventMetric.StringValue = EventType;
 	Metrics.Add(MoveTemp(EventMetric));
 
+	// Appended last, after every aliased metric, so the historical alias order
+	// above is untouched.
+	AppendControlMetrics(Metrics);
+
 	// This machine's own node, not simply the first one: with an edge node per
 	// production line, publishing through the wrong one would put the device on
 	// a topic no consumer of that line subscribes to.
@@ -563,6 +567,10 @@ TArray<FSparkplugMetric> UFactoryMachineComponent::BuildBirthMetrics() const
 	EventMetric.StringValue = FactoryEventTypes::Idle;
 	Metrics.Add(MoveTemp(EventMetric));
 
+	// DBIRTH must advertise these or a controller cannot discover that the
+	// station is commandable at all.
+	AppendControlMetrics(Metrics);
+
 	return Metrics;
 }
 
@@ -576,6 +584,20 @@ void UFactoryMachineComponent::StartCycle()
 	{
 		return;
 	}
+
+	if (!CanStartCycle())
+	{
+		// Blocked, not Idle: the difference is what an operator screen and the
+		// OEE numbers key off. Idle means nothing was asked of the station;
+		// Blocked means work arrived and the gate refused it, which is
+		// downtime somebody owns. The board is not lost -- whatever opens the
+		// gate starts the cycle from here.
+		SetMachineState(EFactoryMachineState::Blocked);
+		return;
+	}
+
+	// One trigger buys exactly one cycle.
+	bTriggerPending = false;
 
 	CycleElapsed = 0.0f;
 	bCycleInProgress = true;
@@ -604,6 +626,17 @@ void UFactoryMachineComponent::CompleteCycle()
 
 	if (!bCycleInProgress)
 	{
+		// A gated station. The line asked it to start, the control gate refused,
+		// and the conveyor has now come round to complete a cycle that never
+		// ran. Returning is the whole handling: publishing CYCLE_COMPLETE would
+		// invent a finished board and corrupt the counts downstream, and
+		// dropping to Idle would quietly clear the Blocked state that is the
+		// entire point of the interlock.
+		if (State == EFactoryMachineState::Blocked)
+		{
+			return;
+		}
+
 		// No StartCycle preceded this, so CycleElapsed is left over from an
 		// earlier board. Publishing it would double-count that duration
 		// downstream, so report the transition without cycle-scoped metrics.
@@ -686,6 +719,157 @@ bool UFactoryMachineComponent::RollInspection()
 	const bool bPassed = FMath::FRand() >= Instance->GetFailRate();
 	ReportInspection(bPassed);
 	return bPassed;
+}
+
+// ---------------------------------------------------------------------------
+// External control
+// ---------------------------------------------------------------------------
+
+bool UFactoryMachineComponent::CanStartCycle() const
+{
+	if (!bStationEnabled || bStationHeld)
+	{
+		return false;
+	}
+
+	// A faulted station needs an explicit reset. Starting it would publish a
+	// clean cycle over an unacknowledged fault and lose the event.
+	if (State == EFactoryMachineState::Fault)
+	{
+		return false;
+	}
+
+	if (bRequireExternalTrigger && !bTriggerPending)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool UFactoryMachineComponent::IsReadyForCycle() const
+{
+	return bStationEnabled
+		&& !bStationHeld
+		&& !bCycleInProgress
+		&& State != EFactoryMachineState::Fault;
+}
+
+void UFactoryMachineComponent::SetRequireExternalTrigger(const bool bRequire)
+{
+	if (bRequireExternalTrigger == bRequire)
+	{
+		return;
+	}
+
+	bRequireExternalTrigger = bRequire;
+
+	// Dropping the requirement must release anything the requirement blocked,
+	// or handing control back to the line would leave stations stuck waiting
+	// for a trigger that is never coming.
+	if (!bRequireExternalTrigger && State == EFactoryMachineState::Blocked)
+	{
+		StartCycle();
+	}
+}
+
+void UFactoryMachineComponent::ExternalTrigger()
+{
+	bTriggerPending = true;
+
+	// Mid-cycle triggers are remembered, not obeyed: interrupting would abandon
+	// a board part-processed. The pending flag survives, so the station cycles
+	// again as soon as this one completes.
+	if (bCycleInProgress)
+	{
+		return;
+	}
+
+	if (State == EFactoryMachineState::Idle || State == EFactoryMachineState::Blocked)
+	{
+		StartCycle();
+	}
+}
+
+void UFactoryMachineComponent::SetStationEnabled(const bool bEnabled)
+{
+	if (bStationEnabled == bEnabled)
+	{
+		return;
+	}
+
+	bStationEnabled = bEnabled;
+
+	if (!bStationEnabled)
+	{
+		// Work in progress is allowed to finish; only the next cycle is stopped.
+		if (!bCycleInProgress && State == EFactoryMachineState::Idle)
+		{
+			SetMachineState(EFactoryMachineState::Blocked);
+		}
+	}
+	else if (State == EFactoryMachineState::Blocked)
+	{
+		StartCycle();
+	}
+}
+
+void UFactoryMachineComponent::SetStationHold(const bool bHeld)
+{
+	if (bStationHeld == bHeld)
+	{
+		return;
+	}
+
+	bStationHeld = bHeld;
+
+	if (bStationHeld)
+	{
+		if (!bCycleInProgress && State == EFactoryMachineState::Idle)
+		{
+			SetMachineState(EFactoryMachineState::Blocked);
+		}
+	}
+	else if (State == EFactoryMachineState::Blocked)
+	{
+		StartCycle();
+	}
+}
+
+void UFactoryMachineComponent::ResetStationFault()
+{
+	if (State != EFactoryMachineState::Fault)
+	{
+		return;
+	}
+
+	// Straight to Idle rather than Blocked: a reset is an operator saying the
+	// station is fit to run, and the gate is re-evaluated at the next StartCycle
+	// anyway.
+	SetMachineState(EFactoryMachineState::Idle);
+}
+
+void UFactoryMachineComponent::AppendControlMetrics(TArray<FSparkplugMetric>& Metrics) const
+{
+	FSparkplugMetric ReadyMetric = MakeMetric(
+		FactoryControlMetrics::Ready, ESparkplugDataType::Boolean);
+	ReadyMetric.IntValue = IsReadyForCycle() ? 1 : 0;
+	Metrics.Add(MoveTemp(ReadyMetric));
+
+	FSparkplugMetric BusyMetric = MakeMetric(
+		FactoryControlMetrics::Busy, ESparkplugDataType::Boolean);
+	BusyMetric.IntValue = bCycleInProgress ? 1 : 0;
+	Metrics.Add(MoveTemp(BusyMetric));
+
+	FSparkplugMetric EnabledMetric = MakeMetric(
+		FactoryControlMetrics::StationEnabled, ESparkplugDataType::Boolean);
+	EnabledMetric.IntValue = (bStationEnabled && !bStationHeld) ? 1 : 0;
+	Metrics.Add(MoveTemp(EnabledMetric));
+
+	FSparkplugMetric ModeMetric = MakeMetric(
+		FactoryControlMetrics::ControlMode, ESparkplugDataType::String);
+	ModeMetric.StringValue = bRequireExternalTrigger ? TEXT("external") : TEXT("local");
+	Metrics.Add(MoveTemp(ModeMetric));
 }
 
 void UFactoryMachineComponent::SetPartId(const FString& InPartId)

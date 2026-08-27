@@ -1,0 +1,250 @@
+// ===========================================================================
+//  SMT_Line_Sequencer  --  PAC Control strategy for the FactoryTwin SMT line
+//  Target: groov EPIC (GRV-EPIC-PR1 / PR2), PAC Control R10.3+
+// ===========================================================================
+//
+//  What this does
+//  --------------
+//  Owns the takt of one SMT line and decides when each of its 17 stations
+//  cycles. The Unreal twin follows these tags; it does not run itself while
+//  this chart is in charge.
+//
+//  Why the twin follows rather than being commanded
+//  ------------------------------------------------
+//  A groov EPIC is a Sparkplug *edge node*. It publishes its own tags happily,
+//  but Sparkplug reserves commands (DCMD) for a primary application, so an
+//  edge node has no way to command a peer. Rather than put Ignition in the
+//  control path as a translator, the twin subscribes to this node's DATA and
+//  acts on it. That keeps the loop at one broker hop and means the line still
+//  runs when Ignition is down.
+//
+//  Open loop, and deliberately so
+//  ------------------------------
+//  This chart does not wait for the twin to report a cycle complete before
+//  firing the next station. Reading Sparkplug back into strategy variables
+//  needs the groov MQTT client's subscribe side and a decode step, which is
+//  Phase 5. Until then the offsets below stand in for the handshake: they are
+//  fractions of takt, so the sequence rescales when takt changes.
+//
+//  Safety
+//  ------
+//  diEStopOk is a *status* input reflecting a hardwired chain -- it is read so
+//  the twin can display the state, never so software can be what stops a
+//  machine. Nothing here is safety-rated and nothing here should ever be the
+//  only thing between a person and a moving axis.
+//
+//  Installing
+//  ----------
+//  Create the tags listed in tag_database.md first -- the names are the wire
+//  contract and the twin matches on them. Then paste Initialize into the
+//  chart's first OptoScript block and Scan into a block that loops back on
+//  itself. Publishing is configured separately, in groov Manage; see
+//  ../groov_manage_setup.md.
+//
+//  Timer accessors (StartTimer / PauseTimer / ContinueTimer, and reading an up
+//  timer by name) are as documented for R10.3. Check them against the command
+//  reference for the revision actually installed before commissioning.
+// ===========================================================================
+
+
+// ===========================================================================
+//  BLOCK: Initialize          (runs once, on strategy start)
+// ===========================================================================
+
+// --- bind the pointer tables ----------------------------------------------
+// PAC Control tag names cannot contain '/', so each station command is its own
+// scalar tag and the pointer tables are what make the logic below a loop
+// instead of 51 copied lines. Index order is process order and must match
+// fStationOffset.
+
+pTrigger[0]  = &Line1_LOADER_trigger;
+pTrigger[1]  = &Line1_LASER_MARKING_trigger;
+pTrigger[2]  = &Line1_SOLDER_PASTE_trigger;
+pTrigger[3]  = &Line1_SOLDER_INSP_trigger;
+pTrigger[4]  = &Line1_COMPONENT_PLACER_trigger;
+pTrigger[5]  = &Line1_REFLOW_OVEN_trigger;
+pTrigger[6]  = &Line1_AUTO_OPTICALINSP_trigger;
+pTrigger[7]  = &Line1_PCB_CLEANER_trigger;
+pTrigger[8]  = &Line1_HOUSING_ASSEMBLY_trigger;
+pTrigger[9]  = &Line1_PIN_INSERTION_trigger;
+pTrigger[10] = &Line1_PIN_INSPECTION_trigger;
+pTrigger[11] = &Line1_ASSEMBLY_ROBOT_trigger;
+pTrigger[12] = &Line1_ICT_trigger;
+pTrigger[13] = &Line1_FLASH_PROGRAMMING_trigger;
+pTrigger[14] = &Line1_PIN_CHECK_trigger;
+pTrigger[15] = &Line1_EOL_TEST_trigger;
+pTrigger[16] = &Line1_PACKAGING_trigger;
+
+pEnable[0]   = &Line1_LOADER_enable;
+pEnable[1]   = &Line1_LASER_MARKING_enable;
+pEnable[2]   = &Line1_SOLDER_PASTE_enable;
+pEnable[3]   = &Line1_SOLDER_INSP_enable;
+pEnable[4]   = &Line1_COMPONENT_PLACER_enable;
+pEnable[5]   = &Line1_REFLOW_OVEN_enable;
+pEnable[6]   = &Line1_AUTO_OPTICALINSP_enable;
+pEnable[7]   = &Line1_PCB_CLEANER_enable;
+pEnable[8]   = &Line1_HOUSING_ASSEMBLY_enable;
+pEnable[9]   = &Line1_PIN_INSERTION_enable;
+pEnable[10]  = &Line1_PIN_INSPECTION_enable;
+pEnable[11]  = &Line1_ASSEMBLY_ROBOT_enable;
+pEnable[12]  = &Line1_ICT_enable;
+pEnable[13]  = &Line1_FLASH_PROGRAMMING_enable;
+pEnable[14]  = &Line1_PIN_CHECK_enable;
+pEnable[15]  = &Line1_EOL_TEST_enable;
+pEnable[16]  = &Line1_PACKAGING_enable;
+
+pReset[0]    = &Line1_LOADER_reset;
+pReset[1]    = &Line1_LASER_MARKING_reset;
+pReset[2]    = &Line1_SOLDER_PASTE_reset;
+pReset[3]    = &Line1_SOLDER_INSP_reset;
+pReset[4]    = &Line1_COMPONENT_PLACER_reset;
+pReset[5]    = &Line1_REFLOW_OVEN_reset;
+pReset[6]    = &Line1_AUTO_OPTICALINSP_reset;
+pReset[7]    = &Line1_PCB_CLEANER_reset;
+pReset[8]    = &Line1_HOUSING_ASSEMBLY_reset;
+pReset[9]    = &Line1_PIN_INSERTION_reset;
+pReset[10]   = &Line1_PIN_INSPECTION_reset;
+pReset[11]   = &Line1_ASSEMBLY_ROBOT_reset;
+pReset[12]   = &Line1_ICT_reset;
+pReset[13]   = &Line1_FLASH_PROGRAMMING_reset;
+pReset[14]   = &Line1_PIN_CHECK_reset;
+pReset[15]   = &Line1_EOL_TEST_reset;
+pReset[16]   = &Line1_PACKAGING_reset;
+
+// --- when each station fires, as a fraction of takt ------------------------
+// Staggered so material moves down the line the way it physically would.
+// Firing everything at zero would be simpler and would look wrong.
+
+fStationOffset[0]  = 0.00;   // LOADER
+fStationOffset[1]  = 0.05;   // LASER_MARKING
+fStationOffset[2]  = 0.10;   // SOLDER_PASTE
+fStationOffset[3]  = 0.15;   // SOLDER_INSP
+fStationOffset[4]  = 0.20;   // COMPONENT_PLACER
+fStationOffset[5]  = 0.28;   // REFLOW_OVEN      -- the long one
+fStationOffset[6]  = 0.38;   // AUTO_OPTICALINSP
+fStationOffset[7]  = 0.44;   // PCB_CLEANER
+fStationOffset[8]  = 0.50;   // HOUSING_ASSEMBLY -- operator bench
+fStationOffset[9]  = 0.56;   // PIN_INSERTION
+fStationOffset[10] = 0.62;   // PIN_INSPECTION   -- operator bench
+fStationOffset[11] = 0.68;   // ASSEMBLY_ROBOT
+fStationOffset[12] = 0.74;   // ICT
+fStationOffset[13] = 0.80;   // FLASH_PROGRAMMING
+fStationOffset[14] = 0.86;   // PIN_CHECK
+fStationOffset[15] = 0.92;   // EOL_TEST
+fStationOffset[16] = 0.97;   // PACKAGING
+
+// --- starting state --------------------------------------------------------
+fTaktSeconds     = 6.0;
+nBoardsReleased  = 0;
+nPermissiveLast  = -1;       // -1, not 0, so the first scan always publishes
+nResetButtonLast = 0;
+nTaktRunning     = 1;
+
+for nIndex = 0 to 16 step 1
+  nStationFired[nIndex] = 1; // no takt has opened yet; nothing is due
+  *pTrigger[nIndex]     = 0;
+  *pEnable[nIndex]      = 0; // stations stay blocked until the permissive is true
+  *pReset[nIndex]       = 0;
+next
+
+Line1_new_material = 0;
+
+// Tells the twin to stop running itself and wait to be told. Without this the
+// line free-runs on its own takt and this chart is only a spectator.
+Line1_mode = "external";
+
+StartTimer(tTakt);
+
+
+// ===========================================================================
+//  BLOCK: Scan                (loops back on itself)
+// ===========================================================================
+
+// --- inputs ----------------------------------------------------------------
+nEStopHealthy = IsOn(diEStopOk);
+nRunSelector  = IsOn(diRunSelector);
+nResetButton  = IsOn(diResetButton);
+
+nPermissive = 0;
+if (nEStopHealthy == 1 and nRunSelector == 1) then
+  nPermissive = 1;
+endif
+
+// --- station enables, written only on change -------------------------------
+// The twin reads an enable as a level, so a repeat carries no information --
+// rewriting all 17 every scan would flood the broker to say nothing.
+if (nPermissive <> nPermissiveLast) then
+  for nIndex = 0 to 16 step 1
+    *pEnable[nIndex] = nPermissive;
+  next
+  nPermissiveLast = nPermissive;
+endif
+
+// --- fault reset: one pulse per press, not per scan held --------------------
+if (nResetButton == 1 and nResetButtonLast == 0) then
+  for nIndex = 0 to 16 step 1
+    *pReset[nIndex] = *pReset[nIndex] + 1;
+  next
+endif
+nResetButtonLast = nResetButton;
+
+// --- stack light: what this panel believes about the line -------------------
+// Green running, amber held, red e-stopped. Driven from the permissive rather
+// than from the twin, so it still tells the truth when the network is down.
+if (nEStopHealthy == 0) then
+  TurnOn(doStackRed);   TurnOff(doStackAmber); TurnOff(doStackGreen);
+elseif (nRunSelector == 0) then
+  TurnOff(doStackRed);  TurnOn(doStackAmber);  TurnOff(doStackGreen);
+else
+  TurnOff(doStackRed);  TurnOff(doStackAmber); TurnOn(doStackGreen);
+endif
+
+// --- takt ------------------------------------------------------------------
+if (nPermissive == 0) then
+
+  // Paused, not stopped: releasing the run selector should resume the cycle
+  // where it left off rather than restart the line from the top.
+  if (nTaktRunning == 1) then
+    PauseTimer(tTakt);
+    nTaktRunning = 0;
+  endif
+
+else
+
+  if (nTaktRunning == 0) then
+    ContinueTimer(tTakt);
+    nTaktRunning = 1;
+  endif
+
+  if (tTakt >= fTaktSeconds) then
+    StartTimer(tTakt);                  // restart from zero
+    nBoardsReleased    = nBoardsReleased + 1;
+    Line1_new_material = Line1_new_material + 1;
+
+    // Arm every station for the takt that just opened.
+    for nIndex = 0 to 16 step 1
+      nStationFired[nIndex] = 0;
+    next
+  endif
+
+  // --- fire each station at its offset into the takt ------------------------
+  for nIndex = 0 to 16 step 1
+    if (nStationFired[nIndex] == 0) then
+      if (tTakt >= (fStationOffset[nIndex] * fTaktSeconds)) then
+
+        // A counter, not a toggling bit. The twin fires on any change to a
+        // non-zero value, so a counter works as a pulse -- and it also says how
+        // many cycles this chart believes it commanded, which a toggle cannot.
+        // It wraps harmlessly: only the change matters, never the magnitude.
+        *pTrigger[nIndex]     = *pTrigger[nIndex] + 1;
+        nStationFired[nIndex] = 1;
+
+      endif
+    endif
+  next
+
+endif
+
+// Yield. Without a delay this chart consumes a whole core and starves the rest
+// of the strategy; 20 ms is far finer than the twin can act on anyway.
+DelayMsec(20);

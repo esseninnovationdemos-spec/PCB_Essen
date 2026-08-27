@@ -126,6 +126,61 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Factory Twin")
 	float GetCycleElapsedSeconds() const;
 
+	// --- External control -------------------------------------------------
+	// The gate an outside controller -- a PLC, or Ignition -- holds over this
+	// station. Nothing here starts animation directly: StartCycle stays the one
+	// entry point, and these decide whether a call to it is honoured. That way a
+	// Blueprint driving cycles off its own takt needs no changes to become
+	// externally sequenced.
+
+	/**
+	 * When true this station will not begin a cycle until it is triggered.
+	 *
+	 * The line keeps running its conveyors either way; a station whose takt
+	 * arrives while untriggered goes Blocked and starts the moment the trigger
+	 * does arrive, so no board is silently skipped.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin|Control")
+	void SetRequireExternalTrigger(bool bRequire);
+
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Control")
+	bool GetRequireExternalTrigger() const { return bRequireExternalTrigger; }
+
+	/** Permits one cycle, starting it immediately if the station is free. */
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin|Control")
+	void ExternalTrigger();
+
+	/** False blocks the station indefinitely; true releases it. */
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin|Control")
+	void SetStationEnabled(bool bEnabled);
+
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Control")
+	bool IsStationEnabled() const { return bStationEnabled; }
+
+	/**
+	 * Holds the station without disabling it.
+	 *
+	 * A hold never interrupts work in progress -- the current cycle finishes and
+	 * the next one waits. Interrupting mid-cycle would leave a board half
+	 * processed with no state to describe it.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin|Control")
+	void SetStationHold(bool bHeld);
+
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Control")
+	bool IsStationHeld() const { return bStationHeld; }
+
+	/** Clears a fault, returning the station to Idle. No-op if not faulted. */
+	UFUNCTION(BlueprintCallable, Category = "Factory Twin|Control")
+	void ResetStationFault();
+
+	/** True when a trigger arriving right now would start a cycle. */
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Control")
+	bool IsReadyForCycle() const;
+
+	UFUNCTION(BlueprintPure, Category = "Factory Twin|Control")
+	bool IsCycleInProgress() const { return bCycleInProgress; }
+
 	/** The Sparkplug birth metric set, establishing this device's alias map. */
 	TArray<FSparkplugMetric> BuildBirthMetrics() const;
 
@@ -149,6 +204,12 @@ private:
 
 	/** Builds a Sparkplug metric with the instance's pinned alias attached. */
 	FSparkplugMetric MakeMetric(const FString& MetricName, ESparkplugDataType DataType) const;
+
+	/** Whether the control gate would let a cycle begin. */
+	bool CanStartCycle() const;
+
+	/** Appends the control read-back metrics shared by BIRTH and DDATA. */
+	void AppendControlMetrics(TArray<FSparkplugMetric>& Metrics) const;
 
 	UFactoryLineSubsystem* GetLineSubsystem() const;
 
@@ -198,4 +259,20 @@ private:
 	bool bCycleInProgress = false;
 
 	bool bRegistered = false;
+
+	// --- External control state -------------------------------------------
+
+	/** Set by the line subsystem when the mode changes; not authored per asset. */
+	bool bRequireExternalTrigger = false;
+	bool bStationEnabled = true;
+	bool bStationHeld = false;
+
+	/**
+	 * A trigger has been granted and not yet spent.
+	 *
+	 * Consumed by the StartCycle it permits, so one trigger is exactly one
+	 * cycle -- a controller that stops triggering stops the station rather than
+	 * leaving it free-running on a stale permission.
+	 */
+	bool bTriggerPending = false;
 };

@@ -8,6 +8,26 @@ namespace
 	/** Metric name the spec reserves for forcing a re-announce. */
 	const FString RebirthMetricName = TEXT("Node Control/Rebirth");
 	const FString BirthDeathSequenceMetricName = TEXT("bdSeq");
+
+	/**
+	 * Parses the verb segment of a topic.
+	 *
+	 * Only the message types a peer tap cares about are recognised. Anything
+	 * else -- including commands aimed at that peer, which the wildcard
+	 * subscription also matches -- returns false and is dropped, so we never act
+	 * on traffic addressed to somebody else.
+	 */
+	bool ParseObservableVerb(const FString& Verb, ESparkplugMessageType& OutType)
+	{
+		if      (Verb == TEXT("NBIRTH")) { OutType = ESparkplugMessageType::NBIRTH; }
+		else if (Verb == TEXT("NDATA"))  { OutType = ESparkplugMessageType::NDATA;  }
+		else if (Verb == TEXT("NDEATH")) { OutType = ESparkplugMessageType::NDEATH; }
+		else if (Verb == TEXT("DBIRTH")) { OutType = ESparkplugMessageType::DBIRTH; }
+		else if (Verb == TEXT("DDATA"))  { OutType = ESparkplugMessageType::DDATA;  }
+		else if (Verb == TEXT("DDEATH")) { OutType = ESparkplugMessageType::DDEATH; }
+		else { return false; }
+		return true;
+	}
 }
 
 void USparkplugEdgeNode::RegisterDevice(
@@ -178,10 +198,83 @@ void USparkplugEdgeNode::HandleMqttConnected(const EMqttConnectReturnCode Return
 	Client->Subscribe(
 		BuildTopic(ESparkplugMessageType::DCMD, TEXT("+")), EMqttQoS::AtLeastOnce);
 
+	// Peer taps are re-issued per session: MQTT subscriptions do not survive a
+	// reconnect on a clean session, and this node reconnects on its own.
+	for (const FString& ForeignEdgeNodeId : ObservedEdgeNodes)
+	{
+		SubscribeToObserved(ForeignEdgeNodeId);
+	}
+
 	PublishRebirth();
 
 	bOnline = true;
 	OnOnlineStateChanged.Broadcast(true);
+}
+
+void USparkplugEdgeNode::ObserveEdgeNode(const FString& ForeignEdgeNodeId)
+{
+	if (ForeignEdgeNodeId.IsEmpty())
+	{
+		return;
+	}
+
+	// Tapping ourselves would loop our own DDATA back in as if a peer had sent
+	// it, which for a follower means acting on our own output.
+	if (ForeignEdgeNodeId == Config.EdgeNodeId)
+	{
+		UE_LOG(LogSparkplugB, Warning,
+			TEXT("Refusing to observe '%s': that is this node"), *ForeignEdgeNodeId);
+		return;
+	}
+
+	bool bAlreadyObserved = false;
+	ObservedEdgeNodes.Add(ForeignEdgeNodeId, &bAlreadyObserved);
+	if (bAlreadyObserved)
+	{
+		return;
+	}
+
+	// If the session is already up the subscription has to be issued now;
+	// otherwise HandleMqttConnected picks it up when the session comes up.
+	if (bOnline && Client != nullptr)
+	{
+		SubscribeToObserved(ForeignEdgeNodeId);
+	}
+}
+
+void USparkplugEdgeNode::StopObservingEdgeNode(const FString& ForeignEdgeNodeId)
+{
+	if (ObservedEdgeNodes.Remove(ForeignEdgeNodeId) == 0)
+	{
+		return;
+	}
+
+	if (Client != nullptr)
+	{
+		Client->Unsubscribe(FString::Printf(TEXT("%s/%s/+/%s"),
+			*Config.Namespace, *Config.GroupId, *ForeignEdgeNodeId));
+		Client->Unsubscribe(FString::Printf(TEXT("%s/%s/+/%s/+"),
+			*Config.Namespace, *Config.GroupId, *ForeignEdgeNodeId));
+	}
+}
+
+void USparkplugEdgeNode::SubscribeToObserved(const FString& ForeignEdgeNodeId)
+{
+	if (Client == nullptr)
+	{
+		return;
+	}
+
+	// Two filters because MQTT '+' matches exactly one level: the first catches
+	// the peer's node messages, the second its devices.
+	Client->Subscribe(FString::Printf(TEXT("%s/%s/+/%s"),
+		*Config.Namespace, *Config.GroupId, *ForeignEdgeNodeId), EMqttQoS::AtLeastOnce);
+	Client->Subscribe(FString::Printf(TEXT("%s/%s/+/%s/+"),
+		*Config.Namespace, *Config.GroupId, *ForeignEdgeNodeId), EMqttQoS::AtLeastOnce);
+
+	UE_LOG(LogSparkplugB, Log,
+		TEXT("Observing peer edge node '%s' in group '%s'"),
+		*ForeignEdgeNodeId, *Config.GroupId);
 }
 
 void USparkplugEdgeNode::HandleMqttDisconnected()
@@ -345,6 +438,20 @@ void USparkplugEdgeNode::HandleMqttMessage(const FMqttTransportMessage& Message)
 	}
 
 	const FString& Verb = Segments[2];
+	const FString& Node = Segments[3];
+
+	// A peer's traffic, arriving because of an ObserveEdgeNode tap. It is
+	// reported and nothing more: commands are only ever honoured for this node.
+	if (Node != Config.EdgeNodeId)
+	{
+		ESparkplugMessageType MessageType = ESparkplugMessageType::NDATA;
+		if (ParseObservableVerb(Verb, MessageType))
+		{
+			const FString DeviceId = Segments.Num() >= 5 ? Segments[4] : FString();
+			OnForeignNodeData.Broadcast(MessageType, Node, DeviceId, Payload);
+		}
+		return;
+	}
 
 	if (Verb == TEXT("NCMD"))
 	{

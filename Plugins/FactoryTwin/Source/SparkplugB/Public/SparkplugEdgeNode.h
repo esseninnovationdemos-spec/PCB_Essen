@@ -71,6 +71,12 @@ public:
 		FSparkplugDeviceCommandSignature, const FString&, DeviceId, const FSparkplugPayload&, Payload);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
 		FSparkplugOnlineSignature, bool, bOnline);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(
+		FSparkplugForeignDataSignature,
+		ESparkplugMessageType, MessageType,
+		const FString&, EdgeNodeId,
+		const FString&, DeviceId,
+		const FSparkplugPayload&, Payload);
 
 	/** NCMD received on this node's command topic. */
 	UPROPERTY(BlueprintAssignable, Category = "Sparkplug")
@@ -83,6 +89,21 @@ public:
 	/** Fires true once NBIRTH has gone out, false when the session drops. */
 	UPROPERTY(BlueprintAssignable, Category = "Sparkplug")
 	FSparkplugOnlineSignature OnOnlineStateChanged;
+
+	/**
+	 * BIRTH, DATA or DEATH observed from a *different* edge node in this group.
+	 *
+	 * Sparkplug expects edge nodes to talk to a primary application rather than
+	 * to each other, so nothing is ever sent on a peer's behalf -- this is a
+	 * read-only tap on its stream. It exists because a hardware PLC is an edge
+	 * node too: a groov EPIC publishes its own tags happily but has no way to
+	 * issue a DCMD at us, so following its DATA is the only way it can drive
+	 * this line without a primary application standing in the middle.
+	 *
+	 * DeviceId is empty for node-level (N*) messages.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "Sparkplug")
+	FSparkplugForeignDataSignature OnForeignNodeData;
 
 	/**
 	 * Declares a device and the metrics its DBIRTH advertises.
@@ -130,6 +151,19 @@ public:
 		EMqttQoS QoS = EMqttQoS::AtMostOnce,
 		bool bRetain = false);
 
+	/**
+	 * Starts following another edge node's stream on this same MQTT session,
+	 * delivered through OnForeignNodeData.
+	 *
+	 * Safe to call before Connect: the subscription is re-issued every time the
+	 * session comes up, so it survives a broker reconnect.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Sparkplug")
+	void ObserveEdgeNode(const FString& ForeignEdgeNodeId);
+
+	UFUNCTION(BlueprintCallable, Category = "Sparkplug")
+	void StopObservingEdgeNode(const FString& ForeignEdgeNodeId);
+
 	UFUNCTION(BlueprintPure, Category = "Sparkplug")
 	bool IsOnline() const { return bOnline; }
 
@@ -166,6 +200,9 @@ private:
 
 	/** Bumps bdSeq and builds the will. Called by the transport before each CONNECT. */
 	TArray<uint8> BuildSessionDeathPayload();
+	/** Issues the wildcard subscriptions that tap one peer edge node. */
+	void SubscribeToObserved(const FString& ForeignEdgeNodeId);
+
 	void PublishNodeBirth();
 	void PublishDeviceBirth(const FString& DeviceId);
 	bool PublishPayload(
@@ -183,6 +220,9 @@ private:
 	TMap<FString, TArray<FSparkplugMetric>> Devices;
 	/** Registration order, so DBIRTHs go out deterministically. */
 	TArray<FString> DeviceOrder;
+
+	/** Peer edge nodes this session taps, re-subscribed on every reconnect. */
+	TSet<FString> ObservedEdgeNodes;
 
 	int32 Sequence = 0;
 	/** Atomic: bumped on the transport worker, read when NBIRTH is built. */

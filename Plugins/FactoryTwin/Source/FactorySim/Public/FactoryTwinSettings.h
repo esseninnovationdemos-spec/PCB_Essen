@@ -74,6 +74,56 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Connection")
 	FSparkplugEdgeNodeConfig EdgeNode;
 
+	// --- External control -------------------------------------------------
+
+	/**
+	 * Hand station sequencing to an outside controller.
+	 *
+	 * Off, the line runs itself on takt and a controller can still gate
+	 * individual stations. On, stations cycle only when triggered, so a
+	 * controller that goes quiet stops the line -- which is the point, and why
+	 * the watchdog below exists.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "External Control")
+	bool bExternalControlEnabled = false;
+
+	/**
+	 * Sparkplug edge node id the PLC publishes under.
+	 *
+	 * The twin follows this peer's DATA stream because a groov EPIC is an edge
+	 * node, not a primary application: it publishes its own tags but has no way
+	 * to send us a DCMD. Leave blank to accept commands only from a real primary
+	 * application over DCMD, such as Ignition.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "External Control")
+	FString PlcEdgeNodeId = TEXT("PLC01");
+
+	/** How long the PLC may go quiet before the watchdog acts. */
+	UPROPERTY(Config, EditAnywhere, Category = "External Control",
+		meta = (ClampMin = "1.0", Units = "s"))
+	float PlcTimeoutSeconds = 10.0f;
+
+	/**
+	 * On timeout, hand sequencing back to the line instead of stopping.
+	 *
+	 * A demo that halts because a cable was nudged is worse than one that
+	 * quietly keeps running, so this defaults on. Turn it off when the point of
+	 * the exercise is to show the interlock actually holding.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "External Control")
+	bool bFallBackToLocalOnPlcTimeout = true;
+
+	/**
+	 * Address of the groov EPIC, for diagnostics and commissioning only.
+	 *
+	 * BLANK until the device is on the network -- fill this in when it is. The
+	 * control path does not use it: the PLC reaches us through the broker, so
+	 * the address the PLC needs is the broker's, configured on the device in
+	 * groov Manage. Nothing here opens a connection to it.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "External Control")
+	FString PlcHostAddress;
+
 	UFactoryTwinSettings();
 
 	virtual FName GetCategoryName() const override { return TEXT("Plugins"); }
