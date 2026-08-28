@@ -49,3 +49,6 @@ UpgradeLog.htm
 # Imported model sources kept outside Content; the build commandlet imports them
 # on demand and the resulting assets are what the project actually uses.
 /warehouse6.fbx
+
+# Blender build scripts leave bytecode next to the sources.
+Tools/butchery/__pycache__/
