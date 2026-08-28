@@ -49,6 +49,9 @@ namespace FactoryShapeMaterials
 			{ GridMinor, FLinearColor(0.30f, 0.32f, 0.35f) },
 			{ GridMajor, FLinearColor(0.10f, 0.45f, 0.70f) },
 			{ Belt,      FLinearColor(0.08f, 0.08f, 0.09f) },
+			{ LampWarn,  FLinearColor(0.95f, 0.55f, 0.02f) },
+			{ CabinetShell, FLinearColor(0.66f, 0.67f, 0.65f) },  // RAL 7035
+			{ ModuleFace,   FLinearColor(0.11f, 0.11f, 0.12f) },
 		};
 
 		/** A machine finish: colour plus how metal it is and how polished. */

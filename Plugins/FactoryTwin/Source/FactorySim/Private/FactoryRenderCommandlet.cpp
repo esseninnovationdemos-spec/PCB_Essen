@@ -70,9 +70,45 @@ namespace PlantRender
 
 	constexpr double MetresToCm = 100.0;
 
+	/**
+	 * A fixed viewpoint, overriding the flythrough path.
+	 *
+	 * Exists because there is no other way to photograph a chosen spot in this
+	 * level: BugItGo needs a cheat manager the packaged game does not create, so
+	 * a running -game session always renders from wherever the player start
+	 * happens to be. Modelling work needs to be looked at from a particular
+	 * angle, and this is the tool that does it.
+	 */
+	bool bStillCamera = false;
+	FVector StillLocation = FVector::ZeroVector;
+	FRotator StillRotation = FRotator::ZeroRotator;
+
+	/** Parses "x,y,z" in metres. Returns false if it is not three numbers. */
+	bool ParseVector(const FString& Text, FVector& Out)
+	{
+		TArray<FString> Parts;
+		Text.ParseIntoArray(Parts, TEXT(","), true);
+		if (Parts.Num() != 3)
+		{
+			return false;
+		}
+		Out = FVector(
+			FCString::Atod(*Parts[0]) * MetresToCm,
+			FCString::Atod(*Parts[1]) * MetresToCm,
+			FCString::Atod(*Parts[2]) * MetresToCm);
+		return true;
+	}
+
 	/** Linear interpolation between the waypoints bracketing a time. */
 	void SampleAt(const double Time, FVector& OutLocation, FRotator& OutRotation)
 	{
+		if (bStillCamera)
+		{
+			OutLocation = StillLocation;
+			OutRotation = StillRotation;
+			return;
+		}
+
 		const int32 Count = UE_ARRAY_COUNT(Path);
 
 		int32 Next = 1;
@@ -162,9 +198,39 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 	const FString LevelPath = ParamMap.Contains(TEXT("Level"))
 		? ParamMap[TEXT("Level")] : TEXT("/Game/level4");
 
-	const double Seconds = ParamMap.Contains(TEXT("Seconds"))
+	// -From and -LookAt, both in metres, switch the whole render to a single
+	// held viewpoint written as PNG rather than a moving shot written as MP4.
+	// Useful for looking at one piece of geometry; useless for anything else.
+	FVector From = FVector::ZeroVector;
+	FVector LookAt = FVector::ZeroVector;
+	if (ParamMap.Contains(TEXT("From")) && ParamMap.Contains(TEXT("LookAt")))
+	{
+		if (ParseVector(ParamMap[TEXT("From")], From)
+			&& ParseVector(ParamMap[TEXT("LookAt")], LookAt))
+		{
+			bStillCamera = true;
+			StillLocation = From;
+			StillRotation = (LookAt - From).Rotation();
+		}
+		else
+		{
+			UE_LOG(LogFactorySim, Error,
+				TEXT("-From and -LookAt each want three comma-separated metres, "
+					 "e.g. -From=-3.9,-12.0,1.5"));
+			return 1;
+		}
+	}
+
+	double Seconds = ParamMap.Contains(TEXT("Seconds"))
 		? FMath::Clamp(FCString::Atod(*ParamMap[TEXT("Seconds")]), 1.0, 120.0)
 		: Path[UE_ARRAY_COUNT(Path) - 1].TimeSeconds;
+
+	// A held camera needs a handful of frames, not a shot: enough for the
+	// pipeline to warm up its temporal samples and settle, and no more.
+	if (bStillCamera)
+	{
+		Seconds = 0.2;
+	}
 
 	// Up to 120 so a high-frame-rate pass is available, defaulting to 60: that
 	// is smooth, and every player handles it. Above about 60 the returns are
@@ -177,9 +243,22 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 		ParamMap.Contains(TEXT("Width")) ? FCString::Atoi(*ParamMap[TEXT("Width")]) : 1920,
 		ParamMap.Contains(TEXT("Height")) ? FCString::Atoi(*ParamMap[TEXT("Height")]) : 1080);
 
-	UE_LOG(LogFactorySim, Display,
-		TEXT("Authoring the flythrough over %s: %.1f s at %d fps, %dx%d"),
-		*LevelPath, Seconds, Fps, Resolution.X, Resolution.Y);
+	if (bStillCamera)
+	{
+		UE_LOG(LogFactorySim, Display,
+			TEXT("Authoring a still over %s from (%.1f, %.1f, %.1f) m looking at "
+				 "(%.1f, %.1f, %.1f) m, %dx%d"),
+			*LevelPath,
+			From.X / MetresToCm, From.Y / MetresToCm, From.Z / MetresToCm,
+			LookAt.X / MetresToCm, LookAt.Y / MetresToCm, LookAt.Z / MetresToCm,
+			Resolution.X, Resolution.Y);
+	}
+	else
+	{
+		UE_LOG(LogFactorySim, Display,
+			TEXT("Authoring the flythrough over %s: %.1f s at %d fps, %dx%d"),
+			*LevelPath, Seconds, Fps, Resolution.X, Resolution.Y);
+	}
 
 	// ---------------------------------------------------------------------
 	// The camera, which lives in the level
@@ -316,6 +395,21 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 	// module's own private headers, so including it from outside the module
 	// does not compile. The class itself is perfectly usable once the module
 	// is loaded -- it is only the header that is unreachable.
+	if (bStillCamera)
+	{
+		// PNG, because the point of a still is to look at it, and a one-frame
+		// MP4 is awkward to open and impossible to read programmatically.
+		FModuleManager::Get().LoadModule(TEXT("MovieRenderPipelineRenderPasses"));
+		UClass* PngOutput = FindObject<UClass>(nullptr,
+			TEXT("/Script/MovieRenderPipelineRenderPasses.MoviePipelineImageSequenceOutput_PNG"));
+		if (PngOutput == nullptr)
+		{
+			UE_LOG(LogFactorySim, Error, TEXT("PNG output class not found"));
+			return 1;
+		}
+		Config->FindOrAddSettingByClass(PngOutput);
+	}
+	else
 	{
 		FModuleManager::Get().LoadModule(TEXT("MovieRenderPipelineMP4Encoder"));
 		UClass* Mp4Output = FindObject<UClass>(nullptr,
@@ -337,7 +431,9 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 		Output->OutputDirectory.Path = TEXT("{project_dir}/Saved/Renders/");
 		// The frame rate is in the name so passes at different rates sit side by
 		// side instead of the last one silently replacing the one before it.
-		Output->FileNameFormat = FString::Printf(TEXT("PlantFlythrough_%dfps"), Fps);
+		Output->FileNameFormat = bStillCamera
+			? FString(TEXT("Still.{frame_number}"))
+			: FString::Printf(TEXT("PlantFlythrough_%dfps"), Fps);
 		Output->bUseCustomFrameRate = true;
 		Output->OutputFrameRate = DisplayRate;
 		Output->bOverrideExistingOutput = true;

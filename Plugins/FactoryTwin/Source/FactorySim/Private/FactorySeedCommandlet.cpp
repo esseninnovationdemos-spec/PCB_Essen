@@ -39,6 +39,20 @@ namespace SmtSeed
 		return Definition;
 	}
 
+	/** A count rather than a measurement. */
+	FFactoryMetricDefinition MakeIntMetric(
+		const FString& Name,
+		const FString& Unit,
+		const FFactoryRange& Nominal,
+		const FFactoryRange& Absolute,
+		const double IdleValue)
+	{
+		FFactoryMetricDefinition Definition =
+			MakeFloatMetric(Name, Unit, Nominal, Absolute, IdleValue, IdleValue);
+		Definition.DataType = ESparkplugDataType::Int32;
+		return Definition;
+	}
+
 	/** Cycle duration tags only publish when a cycle ends. */
 	FFactoryMetricDefinition MakeCycleTimeMetric(
 		const FString& Name, const FFactoryRange& Nominal, const FFactoryRange& Absolute)
@@ -395,6 +409,53 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		LineType->Metrics = {
 			MakeCycleTimeMetric(TEXT("cycle_time"), { 125.0, 195.0 }, { 100.0, 240.0 }) };
 		Created.Add(LineType);
+	}
+
+	// --- Controller ------------------------------------------------------
+	UFactoryMachineArchetype* ControllerType =
+		CreateAsset<UFactoryMachineArchetype>(ArchetypeFolder, TEXT("A_Controller"), bForce);
+	if (ControllerType != nullptr)
+	{
+		ControllerType->ArchetypeName = TEXT("Controller");
+		ControllerType->Description = NSLOCTEXT("FactoryTwin", "ControllerDesc",
+			"The line's control cabinet: a DIN-rail PLC and its I/O. Processes no material, so "
+			"it reports its own health instead -- scan time, load, temperature, and whether its "
+			"link to the broker is keeping up. Modelled on a groov EPIC.");
+
+		// Conveyor, not Automated: a controller runs for as long as the line
+		// runs and never cycles, which is exactly what that state model means.
+		// Automated would leave it Idle and silent, because an idle machine
+		// deliberately publishes nothing.
+		ControllerType->StateModel = EFactoryStateModel::Conveyor;
+		ControllerType->DefaultTickIntervalSeconds = 1.0f;
+
+		// Scan time is the number a controls engineer looks at first: it is the
+		// budget every rung has to fit inside, and it climbing is the earliest
+		// sign the strategy is outgrowing the processor.
+		FFactoryMetricDefinition ScanTime = MakeFloatMetric(TEXT("scan_time_ms"), TEXT("ms"),
+			{ 1.5, 4.5 }, { 0.0, 30.0 }, 0.9, 28.0);
+
+		FFactoryMetricDefinition ChassisTemp = MakeFloatMetric(TEXT("chassis_temp_c"), TEXT("C"),
+			{ 34.0, 52.0 }, { 15.0, 90.0 }, 24.0, 86.0);
+		ChassisTemp.bThermal = true;
+
+		ControllerType->Metrics = {
+			ScanTime,
+			MakeFloatMetric(TEXT("cpu_load_pct"), TEXT("%"),
+				{ 12.0, 38.0 }, { 0.0, 100.0 }, 4.0, 97.0),
+			MakeFloatMetric(TEXT("memory_free_mb"), TEXT("MB"),
+				{ 360.0, 470.0 }, { 0.0, 512.0 }, 496.0, 12.0),
+			ChassisTemp,
+			MakeIntMetric(TEXT("io_points_active"), TEXT(""),
+				{ 18.0, 52.0 }, { 0.0, 64.0 }, 0.0),
+			// The two that say whether the control link itself is healthy --
+			// the ones worth a panel on the andon when a PLC is driving.
+			MakeFloatMetric(TEXT("mqtt_publish_rate"), TEXT("msg/s"),
+				{ 6.0, 24.0 }, { 0.0, 60.0 }, 0.0, 0.0),
+			MakeFloatMetric(TEXT("network_latency_ms"), TEXT("ms"),
+				{ 0.4, 3.5 }, { 0.0, 250.0 }, 0.3, 240.0),
+		};
+		Created.Add(ControllerType);
 	}
 
 	// =====================================================================

@@ -90,6 +90,9 @@ namespace PlantSeed
 	/** The transport, which is one device for the whole line. */
 	const TCHAR* ConveyorDevice = TEXT("CONVEYOR");
 
+	/** The control cabinet, likewise one per line. */
+	const TCHAR* ControllerDevice = TEXT("LINE_CONTROLLER");
+
 	/** Every metric name an archetype can emit, so none goes out unmapped. */
 	TArray<FString> MetricNamesOf(UFactoryMachineArchetype* Archetype)
 	{
@@ -281,6 +284,42 @@ int32 UFactorySeedPlantCommandlet::Main(const FString& Params)
 				Conveyor->MetricAliases.Add(Name, NextAlias++);
 			}
 			Created.Add(Conveyor);
+		}
+
+		// The control cabinet. Allocated after the conveyor rather than added to
+		// the station template, because the template drives alias numbering in
+		// order -- inserting anything into it would renumber every alias after
+		// the insertion point, and those numbers are baked into the ClickHouse
+		// mapping. Appending here costs the line seven more aliases out of the
+		// two hundred it is budgeted and moves none of the existing ones.
+		const FString ControllerAsset =
+			FString::Printf(TEXT("I_L%d_%s"), Line, ControllerDevice);
+		if (UFactoryMachineInstance* Controller =
+			CreateAsset<UFactoryMachineInstance>(InstanceFolder, ControllerAsset, bForce))
+		{
+			Controller->Archetype = LoadObject<UFactoryMachineArchetype>(
+				nullptr, TEXT("/Game/FactoryTwin/Archetypes/A_Controller.A_Controller"));
+
+			// A work unit of the line it controls, so it lands on that line's
+			// edge node. A cabinet reporting healthy while its own line is dark
+			// would be worse than useless.
+			Controller->Isa95 = FFactoryIsa95Path{
+				Enterprise, Site, PlantArea,
+				FString::Printf(TEXT("Line%d"), Line),
+				ControllerDevice };
+
+			// Stands well off the belt, on the opposite side from the robot arm,
+			// where a panel would actually go: reachable, and not in the way of
+			// material.
+			Controller->LayoutPosition = FVector2D(1.5, -1.9);
+			Controller->LayoutFootprint = FVector2D(0.86, 0.42);
+
+			Controller->MetricAliases.Empty();
+			for (const FString& Name : Controller->GetAllMetricNames())
+			{
+				Controller->MetricAliases.Add(Name, NextAlias++);
+			}
+			Created.Add(Controller);
 		}
 
 		UE_LOG(LogFactorySim, Display,

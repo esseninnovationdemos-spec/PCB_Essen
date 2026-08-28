@@ -3,6 +3,7 @@
 #include "CineCameraActor.h"
 #include "CineCameraComponent.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/SceneComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/LightComponent.h"
 #include "Components/PointLightComponent.h"
@@ -82,6 +83,159 @@ namespace PlantBuild
 		{ TEXT("PACKAGING"),         TEXT("/Game/SMT-Workcenter/Loader/Loader_BP.Loader_BP_C"),
 		  EFactoryProductStage::Packed },
 	};
+
+	/**
+	 * One box or cylinder of the control cabinet.
+	 *
+	 * Sizes and centres are in metres and in the cabinet's own frame: origin on
+	 * the floor at the middle of its footprint, +X to its right, +Y towards its
+	 * back, +Z up. The engine's basic Cube and Cylinder are both 100 units, so
+	 * with 1 uu to the centimetre a scale of 1 is a metre and the numbers below
+	 * read as the real dimensions they are.
+	 */
+	struct FCabinetPart
+	{
+		const TCHAR* Label;
+		FVector CentreMetres;
+		FVector SizeMetres;
+		const TCHAR* Material;
+		bool bCylinder = false;
+	};
+
+	/**
+	 * A groov EPIC in an open-front enclosure, built from primitives.
+	 *
+	 * Open-front deliberately: a closed cabinet is a grey box, and the point of
+	 * putting the controller in the level is that you can see it. What is inside
+	 * is what an EPIC actually looks like -- power supply, processor with a
+	 * display, then I/O modules on a DIN rail, colour-coded by function the way
+	 * Opto 22 codes them.
+	 *
+	 * Placeholder geometry, and good enough to read at demo distance. It is
+	 * sized from the real chassis so a modelled replacement can drop into the
+	 * same footprint without moving anything around it.
+	 */
+	const FCabinetPart CabinetParts[] = {
+		// --- enclosure
+		{ TEXT("Plinth"),      { 0.000,  0.000, 0.060 }, { 0.860, 0.420, 0.120 },
+		  FactoryShapeMaterials::MachineFrame },
+		{ TEXT("BackPanel"),   { 0.000,  0.170, 0.790 }, { 0.800, 0.040, 1.300 },
+		  FactoryShapeMaterials::CabinetShell },
+		{ TEXT("SideLeft"),    {-0.380,  0.000, 0.790 }, { 0.040, 0.380, 1.300 },
+		  FactoryShapeMaterials::CabinetShell },
+		{ TEXT("SideRight"),   { 0.380,  0.000, 0.790 }, { 0.040, 0.380, 1.300 },
+		  FactoryShapeMaterials::CabinetShell },
+		{ TEXT("Roof"),        { 0.000,  0.000, 1.465 }, { 0.800, 0.400, 0.050 },
+		  FactoryShapeMaterials::CabinetShell },
+		{ TEXT("Shelf"),       { 0.000,  0.000, 0.160 }, { 0.760, 0.360, 0.040 },
+		  FactoryShapeMaterials::CabinetShell },
+
+		// --- the chassis on its rail
+		{ TEXT("DinRail"),     { 0.000,  0.120, 1.015 }, { 0.720, 0.035, 0.035 },
+		  FactoryShapeMaterials::SteelPolished },
+		{ TEXT("PowerSupply"), {-0.300,  0.100, 1.095 }, { 0.090, 0.110, 0.130 },
+		  FactoryShapeMaterials::MachineFrame },
+		{ TEXT("Processor"),   {-0.175,  0.100, 1.095 }, { 0.130, 0.110, 0.130 },
+		  FactoryShapeMaterials::ModuleFace },
+		{ TEXT("Display"),     {-0.175,  0.043, 1.105 }, { 0.085, 0.008, 0.050 },
+		  FactoryShapeMaterials::GridMajor },
+
+		// I/O modules, colour-coded by function as Opto 22 codes them:
+		// black digital in, red digital out, white analog in, blue analog out.
+		{ TEXT("ModuleDigIn"), {-0.062,  0.100, 1.095 }, { 0.038, 0.110, 0.130 },
+		  FactoryShapeMaterials::Connector },
+		{ TEXT("ModuleDigOut"),{-0.018,  0.100, 1.095 }, { 0.038, 0.110, 0.130 },
+		  FactoryShapeMaterials::LampFail },
+		{ TEXT("ModuleAnaIn"), { 0.026,  0.100, 1.095 }, { 0.038, 0.110, 0.130 },
+		  FactoryShapeMaterials::Lid },
+		{ TEXT("ModuleAnaOut"),{ 0.070,  0.100, 1.095 }, { 0.038, 0.110, 0.130 },
+		  FactoryShapeMaterials::GridMajor },
+
+		// --- the wiring nobody models and every panel has
+		{ TEXT("TerminalStrip"),{ 0.000, 0.110, 0.880 }, { 0.720, 0.060, 0.050 },
+		  FactoryShapeMaterials::Connector },
+		{ TEXT("WiringDuct"),  { 0.000,  0.130, 0.720 }, { 0.720, 0.050, 0.090 },
+		  FactoryShapeMaterials::CabinetShell },
+
+		// --- stack light, the three lamps the PAC Control strategy drives
+		{ TEXT("StackPole"),   { 0.300,  0.000, 1.540 }, { 0.028, 0.028, 0.100 },
+		  FactoryShapeMaterials::MachineFrame, true },
+		{ TEXT("StackGreen"),  { 0.300,  0.000, 1.620 }, { 0.075, 0.075, 0.060 },
+		  FactoryShapeMaterials::LampPass, true },
+		{ TEXT("StackAmber"),  { 0.300,  0.000, 1.680 }, { 0.075, 0.075, 0.060 },
+		  FactoryShapeMaterials::LampWarn, true },
+		{ TEXT("StackRed"),    { 0.300,  0.000, 1.740 }, { 0.075, 0.075, 0.060 },
+		  FactoryShapeMaterials::LampFail, true },
+	};
+
+	/**
+	 * Spawns the cabinet and returns it, or null if the primitives are missing.
+	 *
+	 * Components are added to the actor instance rather than to a Blueprint, so
+	 * the whole thing lives in the generated level and re-running the build is
+	 * how you change it.
+	 */
+	AActor* BuildControlCabinet(
+		UWorld* World, const FTransform& Where, const int32 Line, int32& OutParts)
+	{
+		UStaticMesh* Cube = LoadObject<UStaticMesh>(
+			nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+		UStaticMesh* Cylinder = LoadObject<UStaticMesh>(
+			nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+		if (Cube == nullptr || Cylinder == nullptr)
+		{
+			UE_LOG(LogFactorySim, Warning,
+				TEXT("Engine basic shapes are missing; skipping the control cabinet"));
+			return nullptr;
+		}
+
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride =
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		AActor* Cabinet = World->SpawnActor<AActor>(AActor::StaticClass(), Where, Params);
+		if (Cabinet == nullptr)
+		{
+			return nullptr;
+		}
+
+		Cabinet->SetActorLabel(FString::Printf(TEXT("L%d_ControlCabinet"), Line));
+
+		USceneComponent* Root = NewObject<USceneComponent>(Cabinet, TEXT("Root"));
+		Cabinet->SetRootComponent(Root);
+		Root->RegisterComponent();
+
+		// After the root exists, not before. A bare AActor has no root at spawn
+		// time, so the transform handed to SpawnActor has nothing to apply
+		// itself to and is silently dropped -- which put all three cabinets on
+		// top of each other at the world origin.
+		Cabinet->SetActorTransform(Where);
+
+		for (const FCabinetPart& Part : CabinetParts)
+		{
+			UStaticMeshComponent* Piece =
+				NewObject<UStaticMeshComponent>(Cabinet, Part.Label);
+			Piece->SetStaticMesh(Part.bCylinder ? Cylinder : Cube);
+			Piece->SetupAttachment(Root);
+			Piece->SetRelativeLocation(Part.CentreMetres * FactoryGrid::MetresToCm);
+			Piece->SetRelativeScale3D(Part.SizeMetres);
+
+			// Nothing walks into a panel, and collision on twenty boxes is cost
+			// for no behaviour.
+			Piece->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+			if (UMaterialInterface* Material = FactoryShapeMaterials::Load(Part.Material))
+			{
+				Piece->SetMaterial(0, Material);
+			}
+
+			Piece->RegisterComponent();
+			Cabinet->AddInstanceComponent(Piece);
+			++OutParts;
+		}
+
+		return Cabinet;
+	}
 
 	/** Benches worked by a person rather than a machine. */
 	bool IsOperatorBench(const FString& DeviceSuffix)
@@ -355,6 +509,9 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 	int32 TotalCapturesTamed = 0;
 	/// Station-internal lights switched to non-shadow-casting.
 	int32 TotalLightsUnshadowed = 0;
+	/// Control cabinets placed, and the primitives they are built from.
+	int32 TotalCabinets = 0;
+	int32 TotalCabinetParts = 0;
 
 	for (int32 Line = 1; Line <= Lines; ++Line)
 	{
@@ -551,6 +708,49 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 					Machine->RegisterComponent();
 					Conveyor->AddInstanceComponent(Machine);
 					++TotalPlaced;
+				}
+			}
+		}
+
+		// The control cabinet, at the head of the line and off to the side.
+		if (LastX > FirstX)
+		{
+			int32 PartsBuilt = 0;
+			const FTransform CabinetAt(
+				FRotator(0.0, 90.0, 0.0),
+				FactoryGrid::MetresToWorld(
+					// In the aisle beside the line, on the opposite side from the
+					// robot arm. 1.9 m out rather than nearer: the racking rows
+					// sit between the belt and here, and anything closer ends up
+					// behind a shelf where nobody can see it or reach it.
+					FVector2D(LaneX - 1.9, LineStartY + FirstX - 0.5)));
+
+			if (AActor* Cabinet = BuildControlCabinet(World, CabinetAt, Line, PartsBuilt))
+			{
+				TotalCabinetParts += PartsBuilt;
+
+				const FVector At = Cabinet->GetActorLocation();
+				UE_LOG(LogFactorySim, Display,
+					TEXT("  line %d control cabinet at (%.2f, %.2f) m, %d part(s)"),
+					Line, At.X / FactoryGrid::MetresToCm, At.Y / FactoryGrid::MetresToCm,
+					PartsBuilt);
+
+				if (UFactoryMachineInstance* ControllerInstance =
+					LoadInstance(Line, TEXT("LINE_CONTROLLER")))
+				{
+					UFactoryMachineComponent* Machine = NewObject<UFactoryMachineComponent>(
+						Cabinet, UFactoryMachineComponent::StaticClass(), TEXT("FactoryMachine"));
+					Machine->Instance = ControllerInstance;
+					Machine->RegisterComponent();
+					Cabinet->AddInstanceComponent(Machine);
+					++TotalPlaced;
+					++TotalCabinets;
+				}
+				else
+				{
+					UE_LOG(LogFactorySim, Warning,
+						TEXT("  line %d has a cabinet but no LINE_CONTROLLER instance; "
+							 "re-run the plant seed"), Line);
 				}
 			}
 		}
@@ -793,9 +993,10 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 
 	UE_LOG(LogFactorySim, Display,
 		TEXT("Built %s: %d line(s), %d device(s), %d operator(s), %d hall part(s), "
-			 "%d slot(s) in a machine finish, %d scene capture(s) throttled, "
-			 "%d light(s) unshadowed"),
-		*LevelPath, Lines, TotalPlaced, TotalOperators, HallParts, TotalSlotsFinished,
+			 "%d control cabinet(s) of %d part(s), %d slot(s) in a machine finish, "
+			 "%d scene capture(s) throttled, %d light(s) unshadowed"),
+		*LevelPath, Lines, TotalPlaced, TotalOperators, HallParts,
+		TotalCabinets, TotalCabinetParts, TotalSlotsFinished,
 		TotalCapturesTamed, TotalLightsUnshadowed);
 	return 0;
 }
