@@ -12,6 +12,12 @@
    1.76,
    3.0
   ],
+  "to": [
+   -83.73,
+   -84.56,
+   68.0
+  ],
+  "seconds": 4.5,
   "group": "plant",
   "note": "whole plant from the south-west"
  },
@@ -28,6 +34,12 @@
    1.76,
    3.0
   ],
+  "to": [
+   106.3,
+   -54.46,
+   68.0
+  ],
+  "seconds": 4.5,
   "group": "plant",
   "note": "whole plant from the south-east"
  },
@@ -44,6 +56,12 @@
    1.76,
    3.0
   ],
+  "to": [
+   84.28,
+   84.6,
+   68.0
+  ],
+  "seconds": 4.5,
   "group": "plant",
   "note": "whole plant from the north-east"
  },
@@ -60,6 +78,12 @@
    1.76,
    3.0
   ],
+  "to": [
+   -105.75,
+   54.51,
+   68.0
+  ],
+  "seconds": 4.5,
   "group": "plant",
   "note": "whole plant from the north-west"
  },
@@ -76,6 +100,12 @@
    0.0,
    3.0
   ],
+  "to": [
+   -87.28,
+   -21.0,
+   32.0
+  ],
+  "seconds": 4.5,
   "group": "plant",
   "note": "along the building, cut away"
  },
@@ -92,6 +122,12 @@
    18.0,
    4.0
   ],
+  "to": [
+   -94.64,
+   -76.7,
+   26.0
+  ],
+  "seconds": 4.0,
   "group": "shed",
   "note": "dock elevation from the yard"
  },
@@ -108,6 +144,12 @@
    -20.0,
    4.0
   ],
+  "to": [
+   -5.33,
+   -122.65,
+   30.0
+  ],
+  "seconds": 4.0,
   "group": "shed",
   "note": "south elevation"
  },
@@ -124,6 +166,12 @@
    0.0,
    8.0
   ],
+  "to": [
+   -83.22,
+   -90.46,
+   96.0
+  ],
+  "seconds": 4.0,
   "group": "shed",
   "note": "roof and rooflights from above"
  },
@@ -140,6 +188,12 @@
    -28.48,
    1.6
   ],
+  "to": [
+   -66.87,
+   -56.23,
+   16.12
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Lairage & race"
  },
@@ -156,6 +210,12 @@
    -28.48,
    1.6
   ],
+  "to": [
+   -40.85,
+   -60.68,
+   21.08
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Stun \u00b7 bleed \u00b7 scald \u00b7 dehair \u00b7 singe"
  },
@@ -172,6 +232,12 @@
    -28.48,
    1.6
   ],
+  "to": [
+   -3.86,
+   -58.45,
+   18.6
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Eviscerate \u00b7 split \u00b7 inspect"
  },
@@ -188,6 +254,12 @@
    -28.48,
    1.6
   ],
+  "to": [
+   28.14,
+   -58.45,
+   18.6
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Blast chill tunnels"
  },
@@ -204,6 +276,12 @@
    1.52,
    1.6
   ],
+  "to": [
+   -66.92,
+   -25.63,
+   16.12
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Welfare \u00b7 boot wash \u00b7 laundry"
  },
@@ -220,6 +298,12 @@
    1.52,
    1.6
   ],
+  "to": [
+   -44.94,
+   -25.43,
+   16.12
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Refrigeration \u00b7 compressors"
  },
@@ -236,6 +320,12 @@
    1.52,
    1.6
   ],
+  "to": [
+   -24.92,
+   -25.63,
+   16.12
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Inedible rendering"
  },
@@ -252,6 +342,12 @@
    1.52,
    1.6
   ],
+  "to": [
+   -2.87,
+   -26.23,
+   16.12
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Red & green offal"
  },
@@ -268,6 +364,12 @@
    1.52,
    1.6
   ],
+  "to": [
+   25.65,
+   -29.57,
+   19.84
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Equalisation chill"
  },
@@ -284,6 +386,12 @@
    30.48,
    1.6
   ],
+  "to": [
+   -66.57,
+   4.87,
+   14.88
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Dock & load-out"
  },
@@ -300,6 +408,12 @@
    30.48,
    1.6
   ],
+  "to": [
+   -42.05,
+   1.53,
+   18.6
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Palletised cold store"
  },
@@ -316,6 +430,12 @@
    30.48,
    1.6
   ],
+  "to": [
+   -10.05,
+   1.53,
+   18.6
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Vacuum \u00b7 detect \u00b7 carton"
  },
@@ -332,6 +452,12 @@
    30.48,
    1.6
   ],
+  "to": [
+   20.46,
+   -1.81,
+   22.32
+  ],
+  "seconds": 2.6,
   "group": "chamber",
   "note": "Deboning & trimming"
  },
@@ -348,6 +474,12 @@
    -29.0,
    2.0
   ],
+  "to": [
+   -43.83,
+   -32.78,
+   7.5
+  ],
+  "seconds": 2.6,
   "group": "line",
   "note": "2 x Kill line"
  },
@@ -364,6 +496,12 @@
    -29.0,
    2.0
   ],
+  "to": [
+   -7.87,
+   -32.3,
+   7.5
+  ],
+  "seconds": 2.6,
   "group": "line",
   "note": "2 x Dressing line"
  },
@@ -380,6 +518,12 @@
    -29.0,
    2.0
   ],
+  "to": [
+   24.13,
+   -32.3,
+   7.5
+  ],
+  "seconds": 2.6,
   "group": "line",
   "note": "4 x Chill tunnel"
  },
@@ -396,6 +540,12 @@
    1.0,
    2.0
   ],
+  "to": [
+   22.15,
+   -2.54,
+   7.5
+  ],
+  "seconds": 2.6,
   "group": "line",
   "note": "6 x Chill rail"
  },
@@ -412,6 +562,12 @@
    1.0,
    2.0
   ],
+  "to": [
+   -7.92,
+   -1.83,
+   7.5
+  ],
+  "seconds": 2.6,
   "group": "line",
   "note": "2 x Offal line"
  },
@@ -428,6 +584,12 @@
    32.88,
    2.0
   ],
+  "to": [
+   47.59,
+   9.06,
+   7.5
+  ],
+  "seconds": 2.6,
   "group": "line",
   "note": "4 x Deboning line"
  },
@@ -444,6 +606,12 @@
    32.88,
    2.0
   ],
+  "to": [
+   12.59,
+   9.06,
+   7.5
+  ],
+  "seconds": 2.6,
   "group": "line",
   "note": "3 x Packing line"
  }

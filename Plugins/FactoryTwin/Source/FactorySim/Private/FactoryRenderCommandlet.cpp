@@ -7,7 +7,10 @@
 #include "FactorySimTypes.h"
 #include "FileHelpers.h"
 #include "LevelSequence.h"
+#include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "MovieScene.h"
 #include "MoviePipelineAntiAliasingSetting.h"
 #include "MoviePipelineDeferredPasses.h"
@@ -82,6 +85,75 @@ namespace PlantRender
 	bool bStillCamera = false;
 	FVector StillLocation = FVector::ZeroVector;
 	FRotator StillRotation = FRotator::ZeroRotator;
+
+	/**
+	 * One shot of the tour: a viewpoint that moves while holding its subject.
+	 *
+	 * A still needs one pose; a shot needs two, and the camera looks at the same
+	 * point throughout -- so the move is an orbit and parallax does the work of
+	 * showing depth. A push-in on a static machine reads as a zoom.
+	 */
+	struct FTourShot
+	{
+		FString Name;
+		FVector From = FVector::ZeroVector;
+		FVector To = FVector::ZeroVector;
+		FVector Look = FVector::ZeroVector;
+		double Seconds = 2.6;
+	};
+
+	FVector JsonVector(const TArray<TSharedPtr<FJsonValue>>* Values)
+	{
+		if (Values == nullptr || Values->Num() != 3)
+		{
+			return FVector::ZeroVector;
+		}
+		return FVector((*Values)[0]->AsNumber() * MetresToCm,
+					   (*Values)[1]->AsNumber() * MetresToCm,
+					   (*Values)[2]->AsNumber() * MetresToCm);
+	}
+
+	/** Loads the shots for one level from the shot list. */
+	bool LoadTour(const FString& ShotListPath, const FString& LevelPath,
+		TArray<FTourShot>& Out)
+	{
+		FString Text;
+		if (!FFileHelper::LoadFileToString(Text, *ShotListPath))
+		{
+			UE_LOG(LogFactorySim, Error,
+				TEXT("Could not read shot list %s"), *ShotListPath);
+			return false;
+		}
+
+		TArray<TSharedPtr<FJsonValue>> Rows;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Text);
+		if (!FJsonSerializer::Deserialize(Reader, Rows))
+		{
+			UE_LOG(LogFactorySim, Error,
+				TEXT("Shot list is not valid JSON: %s"), *ShotListPath);
+			return false;
+		}
+
+		for (const TSharedPtr<FJsonValue>& Row : Rows)
+		{
+			const TSharedPtr<FJsonObject> Object = Row->AsObject();
+			if (!Object.IsValid() || Object->GetStringField(TEXT("level")) != LevelPath)
+			{
+				continue;
+			}
+
+			FTourShot Shot;
+			Shot.Name = Object->GetStringField(TEXT("name"));
+			Shot.Seconds = Object->GetNumberField(TEXT("seconds"));
+
+			const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+			if (Object->TryGetArrayField(TEXT("from"), Values)) { Shot.From = JsonVector(Values); }
+			if (Object->TryGetArrayField(TEXT("to"), Values))   { Shot.To = JsonVector(Values); }
+			if (Object->TryGetArrayField(TEXT("look"), Values)) { Shot.Look = JsonVector(Values); }
+			Out.Add(Shot);
+		}
+		return Out.Num() > 0;
+	}
 
 	/** Parses "x,y,z" in metres. Returns false if it is not three numbers. */
 	bool ParseVector(const FString& Text, FVector& Out)
@@ -221,6 +293,14 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 		}
 	}
 
+	// -Tour renders the whole shot list for this level as one continuous video,
+	// cutting between viewpoints, instead of a single held frame.
+	const bool bTour = Switches.Contains(TEXT("Tour"))
+		|| ParamMap.Contains(TEXT("Tour"));
+	const FString TourPath = ParamMap.Contains(TEXT("Tour"))
+		? ParamMap[TEXT("Tour")]
+		: FPaths::ProjectDir() / TEXT("Tools/butchery/shots.json");
+
 	// Names the output, so a batch of shots does not overwrite itself.
 	const FString ShotName = ParamMap.Contains(TEXT("Shot"))
 		? ParamMap[TEXT("Shot")] : FString();
@@ -234,9 +314,25 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 		? FMath::Clamp(FCString::Atod(*ParamMap[TEXT("Seconds")]), 1.0, 120.0)
 		: Path[UE_ARRAY_COUNT(Path) - 1].TimeSeconds;
 
+	TArray<FTourShot> TourShots;
+	if (bTour)
+	{
+		if (!LoadTour(TourPath, LevelPath, TourShots))
+		{
+			UE_LOG(LogFactorySim, Error,
+				TEXT("No shots in %s for level %s"), *TourPath, *LevelPath);
+			return 1;
+		}
+		Seconds = 0.0;
+		for (const FTourShot& Shot : TourShots)
+		{
+			Seconds += Shot.Seconds;
+		}
+	}
+
 	// A held camera needs a handful of frames, not a shot: enough for the
 	// pipeline to warm up its temporal samples and settle, and no more.
-	if (bStillCamera)
+	if (bStillCamera && !bTour)
 	{
 		// Three frames, not twelve. Warm-up frames do the Lumen convergence
 		// without being written, so extra output frames are just the same
@@ -357,27 +453,74 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 		return 1;
 	}
 
-	for (int32 Frame = 0; Frame <= FrameCount; ++Frame)
+	if (bTour)
 	{
-		const double Time = (Fps > 0) ? (static_cast<double>(Frame) / Fps) : 0.0;
+		// Two keys per shot: linear at the head so the camera drifts through the
+		// shot, constant at the tail so it holds there until the next shot's key
+		// and then jumps. That constant key is the cut -- without it the camera
+		// would fly between viewpoints across a single frame and smear.
+		int32 Cursor = 0;
+		for (const FTourShot& Shot : TourShots)
+		{
+			const int32 Frames = FMath::Max(2, FMath::RoundToInt(Shot.Seconds * Fps));
 
-		FVector Location;
-		FRotator Rotation;
-		SampleAt(Time, Location, Rotation);
+			FRotator Head = (Shot.Look - Shot.From).Rotation();
+			FRotator Tail = (Shot.Look - Shot.To).Rotation();
 
-		const FFrameNumber Tick = ConvertFrameTime(
-			FFrameTime(Frame), DisplayRate, TickResolution).RoundToFrame();
+			// Take the short way round. Raw Euler values can cross +/-180
+			// between the two ends of an orbit, and interpolating through that
+			// spins the camera the long way for no visible reason.
+			Tail.Yaw = Head.Yaw + FMath::UnwindDegrees(Tail.Yaw - Head.Yaw);
+			Tail.Pitch = Head.Pitch + FMath::UnwindDegrees(Tail.Pitch - Head.Pitch);
+			Tail.Roll = Head.Roll + FMath::UnwindDegrees(Tail.Roll - Head.Roll);
 
-		// Cubic with automatic tangents. A key on every frame would ride fine on
-		// linear interpolation, but auto tangents smooth the joins between
-		// waypoints so the camera eases through the turns instead of hinging at
-		// each one.
-		Channels[0]->AddCubicKey(Tick, Location.X, RCTM_Auto);
-		Channels[1]->AddCubicKey(Tick, Location.Y, RCTM_Auto);
-		Channels[2]->AddCubicKey(Tick, Location.Z, RCTM_Auto);
-		Channels[3]->AddCubicKey(Tick, Rotation.Roll, RCTM_Auto);
-		Channels[4]->AddCubicKey(Tick, Rotation.Pitch, RCTM_Auto);
-		Channels[5]->AddCubicKey(Tick, Rotation.Yaw, RCTM_Auto);
+			const FFrameNumber First = ConvertFrameTime(
+				FFrameTime(Cursor), DisplayRate, TickResolution).RoundToFrame();
+			const FFrameNumber Last = ConvertFrameTime(
+				FFrameTime(Cursor + Frames - 1), DisplayRate, TickResolution).RoundToFrame();
+
+			const double HeadValues[6] = {
+				Shot.From.X, Shot.From.Y, Shot.From.Z, Head.Roll, Head.Pitch, Head.Yaw };
+			const double TailValues[6] = {
+				Shot.To.X, Shot.To.Y, Shot.To.Z, Tail.Roll, Tail.Pitch, Tail.Yaw };
+
+			for (int32 Channel = 0; Channel < 6; ++Channel)
+			{
+				Channels[Channel]->AddLinearKey(First, HeadValues[Channel]);
+				Channels[Channel]->AddConstantKey(Last, TailValues[Channel]);
+			}
+
+			Cursor += Frames;
+		}
+
+		UE_LOG(LogFactorySim, Display,
+			TEXT("  tour: %d shot(s), %d frames, %.1f s"),
+			TourShots.Num(), Cursor, Cursor / static_cast<double>(Fps));
+	}
+	else
+	{
+		for (int32 Frame = 0; Frame <= FrameCount; ++Frame)
+		{
+			const double Time = (Fps > 0) ? (static_cast<double>(Frame) / Fps) : 0.0;
+
+			FVector Location;
+			FRotator Rotation;
+			SampleAt(Time, Location, Rotation);
+
+			const FFrameNumber Tick = ConvertFrameTime(
+				FFrameTime(Frame), DisplayRate, TickResolution).RoundToFrame();
+
+			// Cubic with automatic tangents. A key on every frame would ride
+			// fine on linear interpolation, but auto tangents smooth the joins
+			// between waypoints so the camera eases through the turns instead
+			// of hinging at each one.
+			Channels[0]->AddCubicKey(Tick, Location.X, RCTM_Auto);
+			Channels[1]->AddCubicKey(Tick, Location.Y, RCTM_Auto);
+			Channels[2]->AddCubicKey(Tick, Location.Z, RCTM_Auto);
+			Channels[3]->AddCubicKey(Tick, Rotation.Roll, RCTM_Auto);
+			Channels[4]->AddCubicKey(Tick, Rotation.Pitch, RCTM_Auto);
+			Channels[5]->AddCubicKey(Tick, Rotation.Yaw, RCTM_Auto);
+		}
 	}
 
 	// Without a camera cut track the render uses the player's view, not this
@@ -410,7 +553,7 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 	// module's own private headers, so including it from outside the module
 	// does not compile. The class itself is perfectly usable once the module
 	// is loaded -- it is only the header that is unreachable.
-	if (bStillCamera)
+	if (bStillCamera && !bTour)
 	{
 		// PNG, because the point of a still is to look at it, and a one-frame
 		// MP4 is awkward to open and impossible to read programmatically.
@@ -436,7 +579,22 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 					 "no video file. Is the MovieRenderPipeline plugin enabled?"));
 			return 1;
 		}
-		Config->FindOrAddSettingByClass(Mp4Output);
+		UMoviePipelineSetting* Encoder = Config->FindOrAddSettingByClass(Mp4Output);
+
+		// Set the rate factor by reflection, because this class is resolved by
+		// name -- its header includes one of its module's private headers and
+		// cannot be included from outside. 18 rather than the default 20: the
+		// difference is invisible on the flat panels that make up most of this
+		// plant and obvious on the rail and the rafter diagonals, which is
+		// exactly where compression artefacts show.
+		if (Encoder != nullptr)
+		{
+			if (FIntProperty* Crf =
+				FindFProperty<FIntProperty>(Mp4Output, TEXT("ConstantRateFactor")))
+			{
+				Crf->SetPropertyValue_InContainer(Encoder, 18);
+			}
+		}
 	}
 
 	if (UMoviePipelineOutputSetting* Output = Cast<UMoviePipelineOutputSetting>(
@@ -446,10 +604,12 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 		Output->OutputDirectory.Path = TEXT("{project_dir}/Saved/Renders/");
 		// The frame rate is in the name so passes at different rates sit side by
 		// side instead of the last one silently replacing the one before it.
-		Output->FileNameFormat = bStillCamera
-			? (ShotName.IsEmpty() ? FString(TEXT("Still.{frame_number}"))
-								  : ShotName + TEXT(".{frame_number}"))
-			: FString::Printf(TEXT("PlantFlythrough_%dfps"), Fps);
+		Output->FileNameFormat = bTour
+			? (ShotName.IsEmpty() ? FString(TEXT("Tour")) : ShotName)
+			: (bStillCamera
+				? (ShotName.IsEmpty() ? FString(TEXT("Still.{frame_number}"))
+									  : ShotName + TEXT(".{frame_number}"))
+				: FString::Printf(TEXT("PlantFlythrough_%dfps"), Fps));
 		Output->bUseCustomFrameRate = true;
 		Output->OutputFrameRate = DisplayRate;
 		Output->bOverrideExistingOutput = true;
@@ -463,7 +623,7 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 		// and clean edges on the roof trusses -- the thin diagonals alias badly
 		// on a single sample, and aliasing on a moving camera reads as the whole
 		// image crawling.
-		if (bStillCamera)
+		if (bStillCamera && !bTour)
 		{
 			// A held camera gets its quality from spatial samples; temporal
 			// ones buy motion blur, which a still does not want, and they cost
@@ -477,6 +637,19 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 			AntiAliasing->RenderWarmUpCount = 24;
 			AntiAliasing->bUseCameraCutForWarmUp = false;
 			AntiAliasing->EngineWarmUpCount = 24;
+		}
+		else if (bTour)
+		{
+			// Temporal, not spatial: a moving camera wants motion blur, and
+			// samples spent on it also anti-alias. Eight, because the first
+			// twelve-second pass rendered in 1.3 minutes -- the cost estimate
+			// that argued for four was an order of magnitude out.
+			AntiAliasing->SpatialSampleCount = 1;
+			AntiAliasing->TemporalSampleCount = 8;
+			AntiAliasing->bOverrideAntiAliasing = true;
+			AntiAliasing->AntiAliasingMethod = AAM_TSR;
+			AntiAliasing->RenderWarmUpCount = 16;
+			AntiAliasing->EngineWarmUpCount = 16;
 		}
 		else
 		{

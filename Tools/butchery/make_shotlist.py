@@ -30,9 +30,29 @@ def world(x, y, z=0.0):
             round(z, 2)]
 
 
-def shot(name, level, frm, look, group, note):
+import math as _math
+
+
+def orbit(frm, look, degrees, rise=0.0):
+    """
+    The same viewpoint swung a few degrees around what it is looking at.
+
+    A still only needs one pose; a shot needs two. Orbiting rather than dollying
+    keeps the subject the same size for the whole shot and lets parallax do the
+    work of showing depth -- a straight push-in on a static machine reads as a
+    zoom, which looks like stock footage.
+    """
+    dx, dy = frm[0] - look[0], frm[1] - look[1]
+    a = _math.radians(degrees)
+    return [round(look[0] + dx * _math.cos(a) - dy * _math.sin(a), 2),
+            round(look[1] + dx * _math.sin(a) + dy * _math.cos(a), 2),
+            round(frm[2] + rise, 2)]
+
+
+def shot(name, level, frm, look, group, note, seconds=2.6, swing=11.0, rise=0.0):
     return {"name": name, "level": level, "from": frm, "look": look,
-            "group": group, "note": note}
+            "to": orbit(frm, look, swing, rise),
+            "seconds": seconds, "group": group, "note": note}
 
 
 def build():
@@ -48,24 +68,25 @@ def build():
         shots.append(shot(name, CUTAWAY,
                           world(W * fx, D * fy, 72.0),
                           world(W * 0.5, D * 0.52, 3.0),
-                          "plant", note))
+                          "plant", note, seconds=4.5, swing=9.0, rise=-4.0))
 
     # Straight down the length, low enough to read the rail.
     shots.append(shot("PLANT_AXIS", CUTAWAY,
                       world(-24.0, D * 0.42, 34.0),
                       world(W * 0.7, D * 0.5, 3.0),
-                      "plant", "along the building, cut away"))
+                      "plant", "along the building, cut away",
+                      seconds=4.5, swing=7.0, rise=-2.0))
 
     # --- the shed itself, roofed ------------------------------------------
     shots.append(shot("SHED_DOCK", ROOFED,
                       world(-42.0, -20.0, 26.0), world(55.0, 62.0, 4.0),
-                      "shed", "dock elevation from the yard"))
+                      "shed", "dock elevation from the yard", seconds=4.0, swing=8.0))
     shots.append(shot("SHED_SOUTH", ROOFED,
                       world(W * 0.35, -76.0, 30.0), world(W * 0.55, 24.0, 4.0),
-                      "shed", "south elevation"))
+                      "shed", "south elevation", seconds=4.0, swing=8.0))
     shots.append(shot("SHED_AERIAL", ROOFED,
                       world(-30.0, -34.0, 96.0), world(W * 0.5, D * 0.5, 8.0),
-                      "shed", "roof and rooflights from above"))
+                      "shed", "roof and rooflights from above", seconds=4.0, swing=8.0))
 
     # --- one per chamber ---------------------------------------------------
     for name, x, y, w, h, zone, temp, label in P.CHAMBERS:
