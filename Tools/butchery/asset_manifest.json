@@ -1,0 +1,508 @@
+{
+ "assets": [
+  {
+   "asset": "ACCUMULATION_TABLE",
+   "file": "SM_ACCUMULATION_TABLE.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "table"
+   ],
+   "size": [
+    2.06,
+    2.064,
+    1.16
+   ]
+  },
+  {
+   "asset": "BELT_CONVEYOR",
+   "file": "SM_BELT_CONVEYOR.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "drumIn",
+    "drumOut"
+   ],
+   "size": [
+    1.22,
+    6.02,
+    1.02
+   ]
+  },
+  {
+   "asset": "BLAST_CHILLER",
+   "file": "SM_BLAST_CHILLER.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "fanA",
+    "fanB"
+   ],
+   "size": [
+    3.5,
+    6.19,
+    4.2
+   ]
+  },
+  {
+   "asset": "BLEED_RAIL",
+   "file": "SM_BLEED_RAIL.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    3.28,
+    8.53,
+    4.005
+   ]
+  },
+  {
+   "asset": "BOOT_WASH",
+   "file": "SM_BOOT_WASH.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    1.66,
+    1.51,
+    1.74
+   ]
+  },
+  {
+   "asset": "BYPRODUCT_TABLE",
+   "file": "SM_BYPRODUCT_TABLE.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    3.08,
+    1.815,
+    2.035
+   ]
+  },
+  {
+   "asset": "CARCASS_INSPECTION",
+   "file": "SM_CARCASS_INSPECTION.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    4.325,
+    4.0,
+    3.605
+   ]
+  },
+  {
+   "asset": "CHAMBER_DOOR",
+   "file": "SM_CHAMBER_DOOR.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "leaf"
+   ],
+   "size": [
+    3.6,
+    0.62,
+    2.94
+   ]
+  },
+  {
+   "asset": "CO2_STUNNER",
+   "file": "SM_CO2_STUNNER.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "gondola"
+   ],
+   "size": [
+    4.51,
+    8.2,
+    4.305
+   ]
+  },
+  {
+   "asset": "DEBONE_STATION",
+   "file": "SM_DEBONE_STATION.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    1.65,
+    1.65,
+    2.035
+   ]
+  },
+  {
+   "asset": "DEBONING_LINE",
+   "file": "SM_DEBONING_LINE.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    3.775,
+    6.29,
+    2.5
+   ]
+  },
+  {
+   "asset": "DEHAIRER",
+   "file": "SM_DEHAIRER.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "beater"
+   ],
+   "size": [
+    2.2,
+    3.7,
+    2.4
+   ]
+  },
+  {
+   "asset": "EVISCERATION_TABLE",
+   "file": "SM_EVISCERATION_TABLE.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "carousel"
+   ],
+   "size": [
+    5.25,
+    4.0,
+    3.605
+   ]
+  },
+  {
+   "asset": "GRINDER",
+   "file": "SM_GRINDER.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "auger"
+   ],
+   "size": [
+    1.304,
+    3.54,
+    1.95
+   ]
+  },
+  {
+   "asset": "METAL_DETECTOR",
+   "file": "SM_METAL_DETECTOR.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    1.81,
+    2.8,
+    1.635
+   ]
+  },
+  {
+   "asset": "OFFAL_CHUTE",
+   "file": "SM_OFFAL_CHUTE.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    1.24,
+    1.24,
+    1.575
+   ]
+  },
+  {
+   "asset": "PALLETISER",
+   "file": "SM_PALLETISER.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "carriage",
+    "head"
+   ],
+   "size": [
+    4.125,
+    5.25,
+    3.22
+   ]
+  },
+  {
+   "asset": "PALLET_RACK",
+   "file": "SM_PALLET_RACK.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    8.26,
+    1.24,
+    5.6
+   ]
+  },
+  {
+   "asset": "POLISHER",
+   "file": "SM_POLISHER.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "brushL",
+    "brushR"
+   ],
+   "size": [
+    2.14,
+    2.5,
+    2.8
+   ]
+  },
+  {
+   "asset": "PROP_CARCASS_HALF",
+   "file": "SM_PROP_CARCASS_HALF.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    0.34,
+    0.225,
+    1.8
+   ]
+  },
+  {
+   "asset": "PROP_CARTON",
+   "file": "SM_PROP_CARTON.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    0.6,
+    0.402,
+    0.255
+   ]
+  },
+  {
+   "asset": "PROP_CRATE",
+   "file": "SM_PROP_CRATE.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    0.6,
+    0.41,
+    0.207
+   ]
+  },
+  {
+   "asset": "PROP_GAMBREL",
+   "file": "SM_PROP_GAMBREL.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    0.46,
+    0.146,
+    0.691
+   ]
+  },
+  {
+   "asset": "PROP_HANDWASH",
+   "file": "SM_PROP_HANDWASH.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    0.545,
+    0.46,
+    1.39
+   ]
+  },
+  {
+   "asset": "PROP_MEAT_BIN",
+   "file": "SM_PROP_MEAT_BIN.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    1.06,
+    0.86,
+    0.86
+   ]
+  },
+  {
+   "asset": "PROP_PALLET",
+   "file": "SM_PROP_PALLET.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    1.2,
+    0.8,
+    0.144
+   ]
+  },
+  {
+   "asset": "PROP_RAIL_SECTION",
+   "file": "SM_PROP_RAIL_SECTION.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    0.14,
+    4.0,
+    0.68
+   ]
+  },
+  {
+   "asset": "RAIL_CARCASS_RUN",
+   "file": "SM_RAIL_CARCASS_RUN.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "carcasses"
+   ],
+   "size": [
+    0.72,
+    6.0,
+    2.77
+   ]
+  },
+  {
+   "asset": "RAIL_CURVE",
+   "file": "SM_RAIL_CURVE.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    1.603,
+    1.569,
+    0.87
+   ]
+  },
+  {
+   "asset": "RAIL_RUN",
+   "file": "SM_RAIL_RUN.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    0.16,
+    6.0,
+    0.89
+   ]
+  },
+  {
+   "asset": "RAIL_SWITCH",
+   "file": "SM_RAIL_SWITCH.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    0.795,
+    4.0,
+    1.96
+   ]
+  },
+  {
+   "asset": "RENDERING_HOPPER",
+   "file": "SM_RENDERING_HOPPER.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "takeoff"
+   ],
+   "size": [
+    2.54,
+    3.37,
+    2.46
+   ]
+  },
+  {
+   "asset": "ROLLER_CONVEYOR",
+   "file": "SM_ROLLER_CONVEYOR.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    0.71,
+    3.0,
+    0.91
+   ]
+  },
+  {
+   "asset": "SCALD_TANK",
+   "file": "SM_SCALD_TANK.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "paddle"
+   ],
+   "size": [
+    2.22,
+    4.4,
+    2.595
+   ]
+  },
+  {
+   "asset": "SCREW_CONVEYOR",
+   "file": "SM_SCREW_CONVEYOR.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "auger"
+   ],
+   "size": [
+    0.594,
+    4.72,
+    1.65
+   ]
+  },
+  {
+   "asset": "SINGE_CABINET",
+   "file": "SM_SINGE_CABINET.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    2.42,
+    2.1,
+    4.6
+   ]
+  },
+  {
+   "asset": "SPLITTING_SAW",
+   "file": "SM_SPLITTING_SAW.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "sawarm",
+    "sawblade"
+   ],
+   "size": [
+    3.1,
+    3.2,
+    3.91
+   ]
+  },
+  {
+   "asset": "STRIP_CURTAIN",
+   "file": "SM_STRIP_CURTAIN.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    2.23,
+    0.19,
+    2.59
+   ]
+  },
+  {
+   "asset": "TRIM_BENCH",
+   "file": "SM_TRIM_BENCH.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    2.41,
+    0.9,
+    2.09
+   ]
+  },
+  {
+   "asset": "VACUUM_PACKER",
+   "file": "SM_VACUUM_PACKER.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "lid"
+   ],
+   "size": [
+    3.1,
+    1.01,
+    1.41
+   ]
+  },
+  {
+   "asset": "WALL_PANEL",
+   "file": "SM_WALL_PANEL.fbx",
+   "skeletal": false,
+   "bones": [],
+   "size": [
+    3.01,
+    0.175,
+    3.96
+   ]
+  }
+ ]
+}

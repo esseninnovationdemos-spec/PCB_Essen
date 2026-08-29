@@ -40,6 +40,10 @@ public class FactorySim : ModuleRules
 					"UnrealEd",
 					"AssetTools",
 					"AssetRegistry",
+					// The butchery plant is laid out in Tools/butchery and read
+					// back from JSON rather than restated in C++. One source
+					// beats two that agree until somebody edits one of them.
+					"Json",
 					// Building the PBR parent material's node graph. Connecting
 					// expressions by hand means reaching into the material's
 					// editor-only data; UMaterialEditingLibrary is the supported
