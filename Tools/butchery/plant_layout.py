@@ -47,14 +47,21 @@ CHAMBERS = [
 
 # Lines inside chambers. `axis` is the direction product travels.
 # (chamber, count, axis, kind, label)
+# `kind` selects the asset tiled along the line: rail is empty overhead rail,
+# railfull carries carcasses, belt is conveyor, pen is lairage railing, pipe is
+# the high-level pipe bridge.
 LINES = [
-    ("KILL_FLOOR",    2, "x", "rail",  "Kill line"),
-    ("EVISCERATION",  2, "x", "rail",  "Dressing line"),
-    ("BLAST_CHILL",   4, "x", "rail",  "Chill tunnel"),
-    ("CARCASS_CHILL", 6, "x", "rail",  "Chill rail"),
-    ("BYPRODUCT",     2, "x", "belt",  "Offal line"),
-    ("CUTTING_HALL",  4, "y", "belt",  "Deboning line"),
-    ("PACKING",       3, "y", "belt",  "Packing line"),
+    ("LAIRAGE",       5, "x", "pen",      "Pen divider"),
+    ("KILL_FLOOR",    2, "x", "rail",     "Kill line"),
+    ("EVISCERATION",  2, "x", "rail",     "Dressing line"),
+    # Loaded, not empty. A chill room full of bare rail is a chill room with
+    # nothing in it, which is the one state a working plant is never in.
+    ("BLAST_CHILL",   4, "x", "railfull", "Chill tunnel"),
+    ("CARCASS_CHILL", 6, "x", "railfull", "Chill rail"),
+    ("PLANT_ROOM",    2, "y", "pipe",     "Pipe bridge"),
+    ("BYPRODUCT",     2, "x", "belt",     "Offal line"),
+    ("CUTTING_HALL",  4, "y", "belt",     "Deboning line"),
+    ("PACKING",       3, "y", "belt",     "Packing line"),
 ]
 
 # The overhead rail, in absolute metres. Carcasses ride this from the bleed rail
@@ -112,7 +119,25 @@ PLACEMENTS = [
     ("PACKING",       "METAL_DETECTOR",      3),
     ("PACKING",       "PALLETISER",          2),
     ("COLD_STORE",    "PALLET_RACK",        12),
+    ("COLD_STORE",    "PALLET_LOAD",        18),
     ("HYGIENE",       "BOOT_WASH",           4),
+    ("HYGIENE",       "LOCKER_BANK",         6),
+
+    # The rooms that were empty. A plant is not only its process line -- half
+    # the floor is animals waiting, refrigeration running, people changing and
+    # product leaving, and with those rooms bare the level reads as a stage set
+    # of the interesting part.
+    ("LAIRAGE",       "PEN_GATE",            6),
+    ("LAIRAGE",       "WATER_TROUGH",        8),
+    ("LAIRAGE",       "CROWD_RACE",          4),
+    ("LAIRAGE",       "UNLOAD_RAMP",         2),
+    ("PLANT_ROOM",    "COMPRESSOR_SKID",     4),
+    ("PLANT_ROOM",    "CONDENSER",           2),
+    ("PLANT_ROOM",    "ELECTRICAL_PANEL",    3),
+    ("RENDERING",     "RENDER_TANK",         4),
+    ("DISPATCH",      "DOCK_LEVELLER",       3),
+    ("DISPATCH",      "TRAILER",             2),
+    ("DISPATCH",      "PALLET_LOAD",         8),
 ]
 
 # Assets the plan needs that do not exist yet.

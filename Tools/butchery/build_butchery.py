@@ -29,12 +29,14 @@ import butchery_infra     # noqa: E402  pylint: disable=wrong-import-position
 import butchery_lib       # noqa: E402  pylint: disable=wrong-import-position
 import butchery_props     # noqa: E402  pylint: disable=wrong-import-position
 import butchery_stations  # noqa: E402  pylint: disable=wrong-import-position
+import butchery_yard      # noqa: E402  pylint: disable=wrong-import-position
 
 # Reloaded every run so editing a station does not need Blender restarted.
 importlib.reload(butchery_lib)
 importlib.reload(butchery_stations)
 importlib.reload(butchery_props)
 importlib.reload(butchery_infra)
+importlib.reload(butchery_yard)
 
 from butchery_lib import (  # noqa: E402  pylint: disable=wrong-import-position
     assemble, build_armature, iter_fcurves, set_origin_to_floor)
@@ -46,6 +48,7 @@ LOOP_FRAMES = 60
 ASSETS = dict(butchery_stations.STATIONS)
 ASSETS.update(butchery_props.PROPS)
 ASSETS.update(butchery_infra.INFRA)
+ASSETS.update(butchery_yard.YARD)
 
 # Assets that hang from the structure rather than stand on the floor. Their
 # origin stays at floor level -- world zero in the source -- so placing one at

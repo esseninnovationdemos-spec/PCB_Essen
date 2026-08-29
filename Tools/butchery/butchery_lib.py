@@ -46,6 +46,10 @@ PALETTE = {
     "Concrete":      ((0.55, 0.54, 0.52), 0.0, 0.85),
     "Carton":        ((0.62, 0.45, 0.26), 0.0, 0.80),
     "Timber":        ((0.66, 0.52, 0.33), 0.0, 0.72),
+    # Indicator lenses. Named for what they mean rather than what colour they
+    # are, so a panel lamp and a dock traffic light can share them.
+    "LampPass":      ((0.06, 0.85, 0.18), 0.0, 0.30),
+    "LampFail":      ((0.88, 0.06, 0.06), 0.0, 0.30),
 }
 
 

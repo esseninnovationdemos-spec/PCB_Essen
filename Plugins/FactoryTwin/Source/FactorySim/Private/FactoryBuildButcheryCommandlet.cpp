@@ -48,6 +48,7 @@ namespace ButcheryBuild
 	struct FSegment
 	{
 		double AX = 0.0, AY = 0.0, BX = 0.0, BY = 0.0;
+		FString Kind;
 	};
 
 	struct FLineGroup
@@ -151,7 +152,8 @@ namespace ButcheryBuild
 		{
 			const TSharedPtr<FJsonObject> Object = Value->AsObject();
 			Plant.Transfers.Add({ Object->GetNumberField(TEXT("ax")), Object->GetNumberField(TEXT("ay")),
-								  Object->GetNumberField(TEXT("bx")), Object->GetNumberField(TEXT("by")) });
+								  Object->GetNumberField(TEXT("bx")), Object->GetNumberField(TEXT("by")),
+								  Object->GetStringField(TEXT("kind")) });
 		}
 
 		for (const TSharedPtr<FJsonValue>& Value : Layout->GetArrayField(TEXT("placements")))
@@ -411,7 +413,7 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 	}
 
 	int32 Walls = 0, Doors = 0, Stations = 0, RailTiles = 0, Belts = 0, Lights = 0, Missing = 0;
-	int32 LoadedTiles = 0, ShellParts = 0;
+	int32 LoadedTiles = 0, ShellParts = 0, Transfers = 0;
 	// Carried across segments so the loaded/empty pattern does not restart at
 	// every corner, which would put a gap at each turn and nowhere else.
 	int32 RunningTile = 0;
@@ -490,11 +492,53 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 		}
 	}
 
-	// --- doors at every transfer -------------------------------------------
+	// --- transfers: the door, and the thing that goes through it -----------
+	//
+	// A door in a wall with nothing running through it is why the belts looked
+	// like they stopped at the wall and went nowhere. Each transfer now carries
+	// its conveyor across the opening, extended well past the wall on both
+	// sides so it visibly comes from one room and arrives in the other.
 	for (const FSegment& Transfer : Plant.Transfers)
 	{
 		const double MX = (Transfer.AX + Transfer.BX) * 0.5;
 		const double MY = (Transfer.AY + Transfer.BY) * 0.5;
+
+		FString Carrier;
+		if (Transfer.Kind == TEXT("belt"))        { Carrier = TEXT("BELT_CONVEYOR"); }
+		else if (Transfer.Kind == TEXT("roller")) { Carrier = TEXT("ROLLER_CONVEYOR"); }
+		else if (Transfer.Kind == TEXT("screw"))  { Carrier = TEXT("SCREW_CONVEYOR"); }
+		else if (Transfer.Kind == TEXT("race"))   { Carrier = TEXT("CROWD_RACE"); }
+
+		if (const FAssetInfo* Info = Assets.Find(Carrier))
+		{
+			const double DX = Transfer.BX - Transfer.AX;
+			const double DY = Transfer.BY - Transfer.AY;
+			const double Len = FMath::Sqrt(DX * DX + DY * DY);
+			const FVector2D Direction = Len > 0.0
+				? FVector2D(DX / Len, DY / Len) : FVector2D(0.0, 1.0);
+			const double Along = FMath::RadiansToDegrees(
+				FMath::Atan2(-Direction.X, Direction.Y));
+
+			const double Module = FMath::Max(
+				FMath::Abs(Direction.X) * Info->Size.X
+				+ FMath::Abs(Direction.Y) * Info->Size.Y, 1.0);
+			const double Run = 14.0;
+			const int32 Tiles = FMath::Max(1, FMath::RoundToInt(Run / Module));
+
+			for (int32 Tile = 0; Tile < Tiles; ++Tile)
+			{
+				const double Offset = (Tile + 0.5) * (Run / Tiles) - Run * 0.5;
+				if (PlaceAsset(World, Carrier, *Info,
+					ToWorld(Plant, MX + Direction.X * Offset,
+							MY + Direction.Y * Offset, 0.0), Along,
+					FString::Printf(TEXT("Transfer_%s_%d_%d"),
+						*Transfer.Kind, Doors, Tile)) != nullptr)
+				{
+					++Transfers;
+				}
+			}
+		}
+
 		// The door faces across the wall it sits in, so it is square to the
 		// direction product travels.
 		const double Yaw = FMath::Abs(Transfer.BX - Transfer.AX)
@@ -565,16 +609,30 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 			const FVector2D Direction = Delta / Length;
 			const double Yaw = FMath::RadiansToDegrees(FMath::Atan2(-Direction.X, Direction.Y));
 
-			// A rail line inside a chamber is plain rail; the carcass-carrying
-			// runs are the main route only, or the building fills with pigs.
-			const FString Asset = Group.Kind == TEXT("rail")
-				? TEXT("RAIL_RUN") : TEXT("BELT_CONVEYOR");
+			// What gets tiled along the line depends on what the line is.
+			FString Asset = TEXT("BELT_CONVEYOR");
+			if (Group.Kind == TEXT("rail"))          { Asset = TEXT("RAIL_RUN"); }
+			else if (Group.Kind == TEXT("railfull")) { Asset = TEXT("RAIL_CARCASS_RUN"); }
+			else if (Group.Kind == TEXT("pen"))      { Asset = TEXT("PEN_RAIL"); }
+			else if (Group.Kind == TEXT("pipe"))     { Asset = TEXT("PIPE_RACK"); }
 
-			const int32 Tiles = FMath::Max(1, FMath::FloorToInt(Length / RailModule));
+			const FAssetInfo* LineInfo = Assets.Find(Asset);
+			if (LineInfo == nullptr)
+			{
+				continue;
+			}
+			// Tile at the asset's own length, not a fixed 6 m: pen railing is
+			// 3 m and pipe bridge 6 m, and tiling both at one figure leaves
+			// either gaps or overlaps down the whole run.
+			const double Module = FMath::Max(
+				FMath::Abs(Direction.X) * LineInfo->Size.X
+				+ FMath::Abs(Direction.Y) * LineInfo->Size.Y, 1.0);
+
+			const int32 Tiles = FMath::Max(1, FMath::FloorToInt(Length / Module));
 			for (int32 Tile = 0; Tile < Tiles; ++Tile)
 			{
 				const FVector2D At = A + Direction * ((Tile + 0.5) * (Length / Tiles));
-				if (PlaceAsset(World, Asset, Assets[Asset],
+				if (PlaceAsset(World, Asset, *LineInfo,
 					ToWorld(Plant, At.X, At.Y, 0.0), Yaw,
 					FString::Printf(TEXT("%s_%s_%d_%d"), *Group.Chamber, *Group.Kind,
 						SegIndex, Tile)) != nullptr)
@@ -882,9 +940,9 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 	UE_LOG(LogFactorySim, Display,
 		TEXT("Built %s: %d wall panel(s), %d door(s), %d station(s), "
 			 "%d rail tile(s) of which %d loaded, %d line module(s), "
-			 "%d shell part(s), %d bay light(s), %d unplaced"),
+			 "%d transfer module(s), %d shell part(s), %d bay light(s), %d unplaced"),
 		*LevelPath, Walls, Doors, Stations, RailTiles, LoadedTiles, Belts,
-		ShellParts, Lights, Missing);
+		Transfers, ShellParts, Lights, Missing);
 
 	return Missing == 0 ? 0 : 1;
 }

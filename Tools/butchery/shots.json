@@ -110,72 +110,6 @@
   "note": "along the building, cut away"
  },
  {
-  "name": "SHED_DOCK",
-  "level": "/Game/level5",
-  "from": [
-   -107.0,
-   -64.0,
-   26.0
-  ],
-  "look": [
-   -10.0,
-   18.0,
-   4.0
-  ],
-  "to": [
-   -94.64,
-   -76.7,
-   26.0
-  ],
-  "seconds": 4.0,
-  "group": "shed",
-  "note": "dock elevation from the yard"
- },
- {
-  "name": "SHED_SOUTH",
-  "level": "/Game/level5",
-  "from": [
-   -19.5,
-   -120.0,
-   30.0
-  ],
-  "look": [
-   6.5,
-   -20.0,
-   4.0
-  ],
-  "to": [
-   -5.33,
-   -122.65,
-   30.0
-  ],
-  "seconds": 4.0,
-  "group": "shed",
-  "note": "south elevation"
- },
- {
-  "name": "SHED_AERIAL",
-  "level": "/Game/level5",
-  "from": [
-   -95.0,
-   -78.0,
-   96.0
-  ],
-  "look": [
-   0.0,
-   0.0,
-   8.0
-  ],
-  "to": [
-   -83.22,
-   -90.46,
-   96.0
-  ],
-  "seconds": 4.0,
-  "group": "shed",
-  "note": "roof and rooflights from above"
- },
- {
   "name": "CH_LAIRAGE",
   "level": "/Game/level5_cutaway",
   "from": [
@@ -462,6 +396,28 @@
   "note": "Deboning & trimming"
  },
  {
+  "name": "LINE_LAIRAGE",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -72.0,
+   -27.0,
+   7.5
+  ],
+  "look": [
+   -46.88,
+   -29.0,
+   2.0
+  ],
+  "to": [
+   -71.92,
+   -31.83,
+   7.5
+  ],
+  "seconds": 2.6,
+  "group": "line",
+  "note": "5 x Pen divider"
+ },
+ {
   "name": "LINE_KILL_FLOOR",
   "level": "/Game/level5_cutaway",
   "from": [
@@ -548,6 +504,28 @@
   "seconds": 2.6,
   "group": "line",
   "note": "6 x Chill rail"
+ },
+ {
+  "name": "LINE_PLANT_ROOM",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -34.0,
+   -21.0,
+   7.5
+  ],
+  "look": [
+   -32.0,
+   4.12,
+   2.0
+  ],
+  "to": [
+   -29.17,
+   -20.92,
+   7.5
+  ],
+  "seconds": 2.6,
+  "group": "line",
+  "note": "2 x Pipe bridge"
  },
  {
   "name": "LINE_BYPRODUCT",

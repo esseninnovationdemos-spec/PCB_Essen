@@ -139,6 +139,45 @@
  ],
  "lines": [
   {
+   "chamber": "LAIRAGE",
+   "count": 5,
+   "axis": "x",
+   "kind": "pen",
+   "label": "Pen divider",
+   "segments": [
+    {
+     "ax": 2.0,
+     "ay": 7.5120000000000005,
+     "bx": 28.0,
+     "by": 7.5120000000000005
+    },
+    {
+     "ax": 2.0,
+     "ay": 11.256,
+     "bx": 28.0,
+     "by": 11.256
+    },
+    {
+     "ax": 2.0,
+     "ay": 15.0,
+     "bx": 28.0,
+     "by": 15.0
+    },
+    {
+     "ax": 2.0,
+     "ay": 18.744,
+     "bx": 28.0,
+     "by": 18.744
+    },
+    {
+     "ax": 2.0,
+     "ay": 22.488,
+     "bx": 28.0,
+     "by": 22.488
+    }
+   ]
+  },
+  {
    "chamber": "KILL_FLOOR",
    "count": 2,
    "axis": "x",
@@ -184,7 +223,7 @@
    "chamber": "BLAST_CHILL",
    "count": 4,
    "axis": "x",
-   "kind": "rail",
+   "kind": "railfull",
    "label": "Chill tunnel",
    "segments": [
     {
@@ -217,7 +256,7 @@
    "chamber": "CARCASS_CHILL",
    "count": 6,
    "axis": "x",
-   "kind": "rail",
+   "kind": "railfull",
    "label": "Chill rail",
    "segments": [
     {
@@ -255,6 +294,27 @@
      "ay": 52.8,
      "bx": 128.0,
      "by": 52.8
+    }
+   ]
+  },
+  {
+   "chamber": "PLANT_ROOM",
+   "count": 2,
+   "axis": "y",
+   "kind": "pipe",
+   "label": "Pipe bridge",
+   "segments": [
+    {
+     "ax": 29.759999999999998,
+     "ay": 32.0,
+     "bx": 29.759999999999998,
+     "by": 58.0
+    },
+    {
+     "ax": 36.24,
+     "ay": 32.0,
+     "bx": 36.24,
+     "by": 58.0
     }
    ]
   },
@@ -525,9 +585,74 @@
    "count": 12
   },
   {
+   "chamber": "COLD_STORE",
+   "asset": "PALLET_LOAD",
+   "count": 18
+  },
+  {
    "chamber": "HYGIENE",
    "asset": "BOOT_WASH",
    "count": 4
+  },
+  {
+   "chamber": "HYGIENE",
+   "asset": "LOCKER_BANK",
+   "count": 6
+  },
+  {
+   "chamber": "LAIRAGE",
+   "asset": "PEN_GATE",
+   "count": 6
+  },
+  {
+   "chamber": "LAIRAGE",
+   "asset": "WATER_TROUGH",
+   "count": 8
+  },
+  {
+   "chamber": "LAIRAGE",
+   "asset": "CROWD_RACE",
+   "count": 4
+  },
+  {
+   "chamber": "LAIRAGE",
+   "asset": "UNLOAD_RAMP",
+   "count": 2
+  },
+  {
+   "chamber": "PLANT_ROOM",
+   "asset": "COMPRESSOR_SKID",
+   "count": 4
+  },
+  {
+   "chamber": "PLANT_ROOM",
+   "asset": "CONDENSER",
+   "count": 2
+  },
+  {
+   "chamber": "PLANT_ROOM",
+   "asset": "ELECTRICAL_PANEL",
+   "count": 3
+  },
+  {
+   "chamber": "RENDERING",
+   "asset": "RENDER_TANK",
+   "count": 4
+  },
+  {
+   "chamber": "DISPATCH",
+   "asset": "DOCK_LEVELLER",
+   "count": 3
+  },
+  {
+   "chamber": "DISPATCH",
+   "asset": "TRAILER",
+   "count": 2
+  },
+  {
+   "chamber": "DISPATCH",
+   "asset": "PALLET_LOAD",
+   "count": 8
   }
  ]
 }

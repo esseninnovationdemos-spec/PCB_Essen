@@ -22,6 +22,9 @@ import plant_layout as P  # noqa: E402
 CUTAWAY = "/Game/level5_cutaway"
 ROOFED = "/Game/level5"
 
+# Interior only.
+INCLUDE_EXTERIOR = False
+
 
 def world(x, y, z=0.0):
     """Layout metres to the level's origin-centred metres."""
@@ -78,15 +81,18 @@ def build():
                       seconds=4.5, swing=7.0, rise=-2.0))
 
     # --- the shed itself, roofed ------------------------------------------
-    shots.append(shot("SHED_DOCK", ROOFED,
+    # Exterior views are excluded: the subject is the plant inside, and a shot
+    # of the cladding tells you nothing about it.
+    if INCLUDE_EXTERIOR:
+        shots.append(shot("SHED_DOCK", ROOFED,
                       world(-42.0, -20.0, 26.0), world(55.0, 62.0, 4.0),
-                      "shed", "dock elevation from the yard", seconds=4.0, swing=8.0))
-    shots.append(shot("SHED_SOUTH", ROOFED,
-                      world(W * 0.35, -76.0, 30.0), world(W * 0.55, 24.0, 4.0),
-                      "shed", "south elevation", seconds=4.0, swing=8.0))
-    shots.append(shot("SHED_AERIAL", ROOFED,
-                      world(-30.0, -34.0, 96.0), world(W * 0.5, D * 0.5, 8.0),
-                      "shed", "roof and rooflights from above", seconds=4.0, swing=8.0))
+                          "shed", "dock elevation from the yard", seconds=4.0, swing=8.0))
+        shots.append(shot("SHED_SOUTH", ROOFED,
+                          world(W * 0.35, -76.0, 30.0), world(W * 0.55, 24.0, 4.0),
+                          "shed", "south elevation", seconds=4.0, swing=8.0))
+        shots.append(shot("SHED_AERIAL", ROOFED,
+                          world(-30.0, -34.0, 96.0), world(W * 0.5, D * 0.5, 8.0),
+                          "shed", "roof and rooflights from above", seconds=4.0, swing=8.0))
 
     # --- one per chamber ---------------------------------------------------
     for name, x, y, w, h, zone, temp, label in P.CHAMBERS:
