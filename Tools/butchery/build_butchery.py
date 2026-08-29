@@ -25,14 +25,16 @@ OUT_DIR = os.path.join(LIB_DIR, "fbx")
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
-import butchery_lib      # noqa: E402  pylint: disable=wrong-import-position
-import butchery_props    # noqa: E402  pylint: disable=wrong-import-position
+import butchery_infra     # noqa: E402  pylint: disable=wrong-import-position
+import butchery_lib       # noqa: E402  pylint: disable=wrong-import-position
+import butchery_props     # noqa: E402  pylint: disable=wrong-import-position
 import butchery_stations  # noqa: E402  pylint: disable=wrong-import-position
 
 # Reloaded every run so editing a station does not need Blender restarted.
 importlib.reload(butchery_lib)
 importlib.reload(butchery_stations)
 importlib.reload(butchery_props)
+importlib.reload(butchery_infra)
 
 from butchery_lib import (  # noqa: E402  pylint: disable=wrong-import-position
     assemble, build_armature, iter_fcurves, set_origin_to_floor)
@@ -43,6 +45,12 @@ LOOP_FRAMES = 60
 
 ASSETS = dict(butchery_stations.STATIONS)
 ASSETS.update(butchery_props.PROPS)
+ASSETS.update(butchery_infra.INFRA)
+
+# Assets that hang from the structure rather than stand on the floor. Their
+# origin stays at floor level -- world zero in the source -- so placing one at
+# a floor position puts the rail at 3.1 m instead of laying it on the ground.
+CEILING_MOUNTED = {"RAIL_RUN", "RAIL_CARCASS_RUN", "RAIL_CURVE", "RAIL_SWITCH"}
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +137,7 @@ def build(name):
     parts, bones, animate = ASSETS[name]()
 
     mesh = assemble(parts, "SM_{:s}".format(name))
-    set_origin_to_floor(mesh)
+    set_origin_to_floor(mesh, floor_z=0.0 if name in CEILING_MOUNTED else None)
 
     rig = None
     if bones:

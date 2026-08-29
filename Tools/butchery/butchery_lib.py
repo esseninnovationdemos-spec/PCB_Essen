@@ -227,19 +227,26 @@ def assemble(parts, name):
     return merged
 
 
-def set_origin_to_floor(obj):
+def set_origin_to_floor(obj, floor_z=None):
     """
     Drop the origin to the middle of the footprint at floor level.
 
     Unreal places actors by their origin, so a station whose origin is at its
     bounding-box centre floats half its own height above the floor. This is the
     single most common reason imported machinery sits wrong.
+
+    `floor_z` overrides where "floor" is. Ceiling-hung assets need it: an
+    overhead rail's lowest geometry is 3 m up, so taking the bounding box would
+    put its origin at the rail and placing it at world zero would lay the rail
+    on the ground. Passing 0.0 keeps the origin at the floor the rail hangs
+    above, which is the height the rest of the plant is dimensioned from.
     """
     _select_only([obj])
     corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
     centre_x = sum(c.x for c in corners) / 8.0
     centre_y = sum(c.y for c in corners) / 8.0
-    floor_z = min(c.z for c in corners)
+    if floor_z is None:
+        floor_z = min(c.z for c in corners)
 
     cursor = bpy.context.scene.cursor.location.copy()
     bpy.context.scene.cursor.location = Vector((centre_x, centre_y, floor_z))

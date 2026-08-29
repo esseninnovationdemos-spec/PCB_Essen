@@ -1,0 +1,113 @@
+<svg class="plan" viewBox="0 0 1352 932" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Top view plan of a multi-chamber pork processing plant">
+<defs><marker id="flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow"/></marker><marker id="railtick" viewBox="0 0 4 8" refX="2" refY="4" markerWidth="4" markerHeight="8" orient="auto"><path d="M2,0 L2,8" class="railtick"/></marker></defs>
+<rect class="shell" x="26.0" y="26.0" width="1300.0" height="880.0" rx="3"/>
+<rect class="chamber zone-dirty" x="46.0" y="626.0" width="260.0" height="260.0" rx="2"/>
+<text class="ch-name" x="176.0" y="646.0">LAIRAGE</text>
+<text class="ch-label" x="176.0" y="661.0">Lairage &amp; race</text>
+<text class="ch-dim" x="300.0" y="879.0">26 &#215; 26 m</text>
+<rect class="chamber zone-dirty" x="326.0" y="626.0" width="340.0" height="260.0" rx="2"/>
+<text class="ch-name" x="496.0" y="646.0">KILL FLOOR</text>
+<text class="ch-label" x="496.0" y="661.0">Stun · bleed · scald · dehair · singe</text>
+<text class="ch-dim" x="660.0" y="879.0">34 &#215; 26 m</text>
+<rect class="chamber zone-clean" x="686.0" y="626.0" width="300.0" height="260.0" rx="2"/>
+<text class="ch-name" x="836.0" y="646.0">EVISCERATION</text>
+<text class="ch-label" x="836.0" y="661.0">Eviscerate · split · inspect</text>
+<text class="ch-temp" x="836.0" y="676.0">+12 &#176;C</text>
+<text class="ch-dim" x="980.0" y="879.0">30 &#215; 26 m</text>
+<rect class="chamber zone-chilled" x="1006.0" y="626.0" width="300.0" height="260.0" rx="2"/>
+<text class="ch-name" x="1156.0" y="646.0">BLAST CHILL</text>
+<text class="ch-label" x="1156.0" y="661.0">Blast chill tunnels</text>
+<text class="ch-temp" x="1156.0" y="676.0">-8 &#176;C</text>
+<text class="ch-dim" x="1300.0" y="879.0">30 &#215; 26 m</text>
+<rect class="chamber zone-support" x="46.0" y="326.0" width="200.0" height="260.0" rx="2"/>
+<text class="ch-name" x="146.0" y="346.0">HYGIENE</text>
+<text class="ch-label" x="146.0" y="361.0">Welfare · boot wash · laundry</text>
+<text class="ch-dim" x="240.0" y="579.0">20 &#215; 26 m</text>
+<rect class="chamber zone-support" x="266.0" y="326.0" width="180.0" height="260.0" rx="2"/>
+<text class="ch-name" x="356.0" y="346.0">PLANT ROOM</text>
+<text class="ch-label" x="356.0" y="361.0">Refrigeration · compressors</text>
+<text class="ch-dim" x="440.0" y="579.0">18 &#215; 26 m</text>
+<rect class="chamber zone-dirty" x="466.0" y="326.0" width="200.0" height="260.0" rx="2"/>
+<text class="ch-name" x="566.0" y="346.0">RENDERING</text>
+<text class="ch-label" x="566.0" y="361.0">Inedible rendering</text>
+<text class="ch-dim" x="660.0" y="579.0">20 &#215; 26 m</text>
+<rect class="chamber zone-clean" x="686.0" y="326.0" width="260.0" height="260.0" rx="2"/>
+<text class="ch-name" x="816.0" y="346.0">BYPRODUCT</text>
+<text class="ch-label" x="816.0" y="361.0">Red &amp; green offal</text>
+<text class="ch-temp" x="816.0" y="376.0">+10 &#176;C</text>
+<text class="ch-dim" x="940.0" y="579.0">26 &#215; 26 m</text>
+<rect class="chamber zone-chilled" x="986.0" y="326.0" width="320.0" height="260.0" rx="2"/>
+<text class="ch-name" x="1146.0" y="346.0">CARCASS CHILL</text>
+<text class="ch-label" x="1146.0" y="361.0">Equalisation chill</text>
+<text class="ch-temp" x="1146.0" y="376.0">+2 &#176;C</text>
+<text class="ch-dim" x="1300.0" y="579.0">32 &#215; 26 m</text>
+<rect class="chamber zone-chilled" x="46.0" y="46.0" width="240.0" height="240.0" rx="2"/>
+<text class="ch-name" x="166.0" y="66.0">DISPATCH</text>
+<text class="ch-label" x="166.0" y="81.0">Dock &amp; load-out</text>
+<text class="ch-temp" x="166.0" y="96.0">+4 &#176;C</text>
+<text class="ch-dim" x="280.0" y="279.0">24 &#215; 24 m</text>
+<rect class="chamber zone-chilled" x="306.0" y="46.0" width="300.0" height="240.0" rx="2"/>
+<text class="ch-name" x="456.0" y="66.0">COLD STORE</text>
+<text class="ch-label" x="456.0" y="81.0">Palletised cold store</text>
+<text class="ch-temp" x="456.0" y="96.0">-2 &#176;C</text>
+<text class="ch-dim" x="600.0" y="279.0">30 &#215; 24 m</text>
+<rect class="chamber zone-chilled" x="626.0" y="46.0" width="300.0" height="240.0" rx="2"/>
+<text class="ch-name" x="776.0" y="66.0">PACKING</text>
+<text class="ch-label" x="776.0" y="81.0">Vacuum · detect · carton</text>
+<text class="ch-temp" x="776.0" y="96.0">+6 &#176;C</text>
+<text class="ch-dim" x="920.0" y="279.0">30 &#215; 24 m</text>
+<rect class="chamber zone-chilled" x="946.0" y="46.0" width="360.0" height="240.0" rx="2"/>
+<text class="ch-name" x="1126.0" y="66.0">CUTTING HALL</text>
+<text class="ch-label" x="1126.0" y="81.0">Deboning &amp; trimming</text>
+<text class="ch-temp" x="1126.0" y="96.0">+10 &#176;C</text>
+<text class="ch-dim" x="1300.0" y="279.0">36 &#215; 24 m</text>
+<line class="line-rail" x1="326.0" y1="802.8" x2="666.0" y2="802.8"/>
+<line class="line-rail" x1="326.0" y1="709.2" x2="666.0" y2="709.2"/>
+<text class="ch-lines" x="333.0" y="878.0">2 &#215; Kill line</text>
+<line class="line-rail" x1="686.0" y1="802.8" x2="986.0" y2="802.8"/>
+<line class="line-rail" x1="686.0" y1="709.2" x2="986.0" y2="709.2"/>
+<text class="ch-lines" x="693.0" y="878.0">2 &#215; Dressing line</text>
+<line class="line-rail" x1="1006.0" y1="826.2" x2="1306.0" y2="826.2"/>
+<line class="line-rail" x1="1006.0" y1="779.4" x2="1306.0" y2="779.4"/>
+<line class="line-rail" x1="1006.0" y1="732.6" x2="1306.0" y2="732.6"/>
+<line class="line-rail" x1="1006.0" y1="685.8" x2="1306.0" y2="685.8"/>
+<text class="ch-lines" x="1013.0" y="878.0">4 &#215; Chill tunnel</text>
+<line class="line-rail" x1="986.0" y1="534.0" x2="1306.0" y2="534.0"/>
+<line class="line-rail" x1="986.0" y1="502.8" x2="1306.0" y2="502.8"/>
+<line class="line-rail" x1="986.0" y1="471.6" x2="1306.0" y2="471.6"/>
+<line class="line-rail" x1="986.0" y1="440.4" x2="1306.0" y2="440.4"/>
+<line class="line-rail" x1="986.0" y1="409.2" x2="1306.0" y2="409.2"/>
+<line class="line-rail" x1="986.0" y1="378.0" x2="1306.0" y2="378.0"/>
+<text class="ch-lines" x="993.0" y="578.0">6 &#215; Chill rail</text>
+<line class="line-belt" x1="686.0" y1="502.8" x2="946.0" y2="502.8"/>
+<line class="line-belt" x1="686.0" y1="409.2" x2="946.0" y2="409.2"/>
+<text class="ch-lines" x="693.0" y="578.0">2 &#215; Offal line</text>
+<line class="line-belt" x1="1028.8" y1="286.0" x2="1028.8" y2="46.0"/>
+<line class="line-belt" x1="1093.6" y1="286.0" x2="1093.6" y2="46.0"/>
+<line class="line-belt" x1="1158.4" y1="286.0" x2="1158.4" y2="46.0"/>
+<line class="line-belt" x1="1223.2" y1="286.0" x2="1223.2" y2="46.0"/>
+<text class="ch-lines" x="953.0" y="278.0">4 &#215; Deboning line</text>
+<line class="line-belt" x1="704.0" y1="286.0" x2="704.0" y2="46.0"/>
+<line class="line-belt" x1="776.0" y1="286.0" x2="776.0" y2="46.0"/>
+<line class="line-belt" x1="848.0" y1="286.0" x2="848.0" y2="46.0"/>
+<text class="ch-lines" x="633.0" y="278.0">3 &#215; Packing line</text>
+<polyline class="rail" points="377.0,704.0 615.0,704.0 731.0,704.0 941.0,704.0 1051.0,704.0 1261.0,704.0 1261.0,847.0 1258.0,365.0 1146.0,547.0 1126.0,82.0 1018.0,118.0" marker-end="url(#flow)"/>
+<line class="transfer t-chute" x1="836.0" y1="756.0" x2="816.0" y2="456.0" marker-end="url(#flow)"/>
+<text class="t-label" x="826.0" y="601.0">chute</text>
+<line class="transfer t-screw" x1="816.0" y1="456.0" x2="566.0" y2="456.0" marker-end="url(#flow)"/>
+<text class="t-label" x="691.0" y="451.0">screw</text>
+<line class="transfer t-belt" x1="1126.0" y1="166.0" x2="776.0" y2="166.0" marker-end="url(#flow)"/>
+<text class="t-label" x="951.0" y="161.0">belt</text>
+<line class="transfer t-roller" x1="776.0" y1="166.0" x2="456.0" y2="166.0" marker-end="url(#flow)"/>
+<text class="t-label" x="616.0" y="161.0">roller</text>
+<line class="transfer t-roller" x1="456.0" y1="166.0" x2="166.0" y2="166.0" marker-end="url(#flow)"/>
+<text class="t-label" x="311.0" y="161.0">roller</text>
+<line class="transfer t-race" x1="176.0" y1="756.0" x2="496.0" y2="756.0" marker-end="url(#flow)"/>
+<text class="t-label" x="336.0" y="751.0">race</text>
+<line class="scalebar" x1="46.0" y1="912.0" x2="246.0" y2="912.0"/>
+<line class="scalebar" x1="46.0" y1="907.0" x2="46.0" y2="917.0"/>
+<line class="scalebar" x1="246.0" y1="907.0" x2="246.0" y2="917.0"/>
+<text class="scale-label" x="146.0" y="930.0">20 m</text>
+<line class="north" x1="1286.0" y1="92.0" x2="1286.0" y2="60.0" marker-end="url(#flow)"/>
+<text class="north-label" x="1286.0" y="54.0">N</text>
+</svg>

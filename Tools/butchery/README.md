@@ -1,7 +1,14 @@
-# Butchery line assets
+# Butchery plant assets
 
-24 FBX files for a pork processing line — 16 stations in process order and 8
-props — built parametrically in Blender and verified by re-import.
+41 FBX files for a thirteen-chamber pork plant — 16 stations, 8 props and 17
+infrastructure pieces — built parametrically in Blender and verified by
+re-import.
+
+The plant itself is [`plant_layout.py`](plant_layout.py): chambers, the lines
+inside them, the overhead rail route and the transfers between rooms. The
+top-view map and the eventual Unreal build both read from it, so a chamber
+cannot be one size on the plan and another in the level. Regenerate the map
+with `python make_plant_page.py`.
 
 ![contact sheet](contact_sheet.png)
 
@@ -52,8 +59,42 @@ Static meshes:
 Props: `PROP_GAMBREL`, `PROP_RAIL_SECTION` (4 m, tileable), `PROP_CARCASS_HALF`,
 `PROP_MEAT_BIN`, `PROP_CRATE`, `PROP_PALLET`, `PROP_CARTON`, `PROP_HANDWASH`.
 
-Total ≈ 9,700 triangles across all 24 — this is blockout-grade geometry sized
-off real machinery, meant to be replaced piece by piece, not shipped as final art.
+### Infrastructure
+
+The pieces that get placed in the hundreds — a plant is mostly not machines, it
+is rail, belt, panel and door laid end to end. All tileable on their nominal
+length.
+
+| Asset | Size (m) | Note |
+|---|---|---|
+| `RAIL_RUN` | 6.00 long | Powered rail with drive chain |
+| `RAIL_CARCASS_RUN` * | 6.00 long | Four gambrels, eight carcass halves, travelling |
+| `RAIL_CURVE` | 1.5 m radius | 90° bend |
+| `RAIL_SWITCH` | 4.00 long | Points with throw lever |
+| `BELT_CONVEYOR` * | 6.00 long | Drums turning |
+| `ROLLER_CONVEYOR` | 3.00 long | Gravity roller |
+| `SCREW_CONVEYOR` * | 4.72 long | Enclosed trough auger |
+| `ACCUMULATION_TABLE` * | 2.06 dia | Rotary buffer |
+| `DEBONE_STATION` | 1.65 × 1.65 | One boning position |
+| `BYPRODUCT_TABLE` | 3.08 × 1.82 | Red / green offal, divided |
+| `OFFAL_CHUTE` | 1.24 × 1.24 | Dressing floor to byproduct |
+| `RENDERING_HOPPER` * | 2.54 × 3.37 | On load cells, screw take-off |
+| `WALL_PANEL` | 3.00 × 3.96 | Hygienic panel, coved base |
+| `CHAMBER_DOOR` * | 3.60 wide | Sliding cold-room door |
+| `STRIP_CURTAIN` | 2.23 wide | PVC strips |
+| `BOOT_WASH` | 1.66 × 1.51 | Hygiene entry |
+| `PALLET_RACK` | 8.26 × 5.60 | 3 bays, 3 levels |
+
+Total ≈ 17,000 triangles across all 41 — blockout-grade geometry sized off real
+machinery, meant to be replaced piece by piece, not shipped as final art.
+
+### Ceiling-mounted assets
+
+`RAIL_RUN`, `RAIL_CARCASS_RUN`, `RAIL_CURVE` and `RAIL_SWITCH` keep their origin
+at **floor level**, not at the bottom of their own geometry. Place one at a
+floor position and the rail lands at 3.1 m where it belongs. Everything else
+origins on its own base. Getting this wrong lays the overhead rail on the
+ground, which is exactly what the first build of them did.
 
 ## Why the animated ones are skeletal meshes
 
