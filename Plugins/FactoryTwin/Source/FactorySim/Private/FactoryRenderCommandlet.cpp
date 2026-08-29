@@ -221,6 +221,15 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 		}
 	}
 
+	// Names the output, so a batch of shots does not overwrite itself.
+	const FString ShotName = ParamMap.Contains(TEXT("Shot"))
+		? ParamMap[TEXT("Shot")] : FString();
+
+	// Spatial samples per pixel. Eight is enough to clean the thin diagonals on
+	// the rafters and rail, which alias badly at one.
+	const int32 Samples = ParamMap.Contains(TEXT("Samples"))
+		? FMath::Clamp(FCString::Atoi(*ParamMap[TEXT("Samples")]), 1, 32) : 1;
+
 	double Seconds = ParamMap.Contains(TEXT("Seconds"))
 		? FMath::Clamp(FCString::Atod(*ParamMap[TEXT("Seconds")]), 1.0, 120.0)
 		: Path[UE_ARRAY_COUNT(Path) - 1].TimeSeconds;
@@ -229,7 +238,13 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 	// pipeline to warm up its temporal samples and settle, and no more.
 	if (bStillCamera)
 	{
-		Seconds = 0.2;
+		// Three frames, not twelve. Warm-up frames do the Lumen convergence
+		// without being written, so extra output frames are just the same
+		// picture rendered again -- and at eight spatial samples that is the
+		// expensive part of a batch.
+		// Three frames at the 60 fps default. Fps is parsed below this point,
+		// so the figure is written out rather than derived from it.
+		Seconds = 2.0 / 60.0;
 	}
 
 	// Up to 120 so a high-frame-rate pass is available, defaulting to 60: that
@@ -432,7 +447,8 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 		// The frame rate is in the name so passes at different rates sit side by
 		// side instead of the last one silently replacing the one before it.
 		Output->FileNameFormat = bStillCamera
-			? FString(TEXT("Still.{frame_number}"))
+			? (ShotName.IsEmpty() ? FString(TEXT("Still.{frame_number}"))
+								  : ShotName + TEXT(".{frame_number}"))
 			: FString::Printf(TEXT("PlantFlythrough_%dfps"), Fps);
 		Output->bUseCustomFrameRate = true;
 		Output->OutputFrameRate = DisplayRate;
@@ -447,8 +463,26 @@ int32 UFactoryRenderCommandlet::Main(const FString& Params)
 		// and clean edges on the roof trusses -- the thin diagonals alias badly
 		// on a single sample, and aliasing on a moving camera reads as the whole
 		// image crawling.
-		AntiAliasing->SpatialSampleCount = 1;
-		AntiAliasing->TemporalSampleCount = 8;
+		if (bStillCamera)
+		{
+			// A held camera gets its quality from spatial samples; temporal
+			// ones buy motion blur, which a still does not want, and they cost
+			// the same. Warm-up frames let Lumen converge before the frame that
+			// is kept -- without them the first frames carry the indirect
+			// lighting of whatever the camera was looking at before.
+			AntiAliasing->SpatialSampleCount = Samples;
+			AntiAliasing->TemporalSampleCount = 1;
+			AntiAliasing->bOverrideAntiAliasing = true;
+			AntiAliasing->AntiAliasingMethod = AAM_TSR;
+			AntiAliasing->RenderWarmUpCount = 24;
+			AntiAliasing->bUseCameraCutForWarmUp = false;
+			AntiAliasing->EngineWarmUpCount = 24;
+		}
+		else
+		{
+			AntiAliasing->SpatialSampleCount = 1;
+			AntiAliasing->TemporalSampleCount = 8;
+		}
 		// A few frames discarded at each cut so temporal effects have converged
 		// before anything is written.
 		AntiAliasing->RenderWarmUpCount = 32;

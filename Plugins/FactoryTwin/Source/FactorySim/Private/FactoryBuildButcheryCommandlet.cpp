@@ -383,6 +383,13 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 	const FString LevelPath = ParamMap.Contains(TEXT("Level"))
 		? ParamMap[TEXT("Level")] : TEXT("/Game/level5");
 
+	// A roofed building cannot be photographed from above, and the plan is most
+	// legible from directly overhead. -NoRoof builds the same plant with the
+	// deck and rooflights omitted, for showcase views only -- the walls,
+	// columns and rafters stay, so it still reads as a building rather than as
+	// a floor plan.
+	const bool bNoRoof = Switches.Contains(TEXT("NoRoof"));
+
 	FPlant Plant;
 	TMap<FString, FAssetInfo> Assets;
 	if (!LoadPlant(Plant, Assets))
@@ -776,7 +783,7 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 		// Roof: solid bays with a glazed rooflight strip between each pair, the
 		// way a shed of this size is actually daylit. Without the strips the
 		// interior goes black and needs the bay lamps doing all the work.
-		const int32 Bays = ColumnsY;
+		const int32 Bays = bNoRoof ? 0 : ColumnsY;
 		for (int32 Bay = 0; Bay < Bays; ++Bay)
 		{
 			const double Y0 = D * Bay / Bays;
