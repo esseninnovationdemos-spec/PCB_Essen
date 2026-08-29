@@ -19,7 +19,10 @@ from butchery_lib import box, cyl, frame, key_spin, key_stroke, tube
 LOOP = 60
 RAIL_Z = 3.10
 RAIL_MODULE = 6.00      # tile length for rail and belt
-CARCASS_PITCH = 1.50    # spacing on the rail, and the travel distance per loop
+# Spacing on the rail, and the travel distance per loop. At 1.5 m the halves
+# very nearly touch and a long run reads as a solid wall of red rather than as
+# individual carcasses -- true of a packed chill room, wrong everywhere else.
+CARCASS_PITCH = 3.00
 
 
 # ===========================================================================

@@ -266,6 +266,19 @@ namespace ButcheryBuild
 		return Actor;
 	}
 
+	/**
+	 * One of the butchery palette materials, which arrived with the meshes.
+	 *
+	 * The shell is built from boxes rather than imported assets, so it has to
+	 * fetch its own materials; FactoryShapeMaterials is the PCB line's palette
+	 * and has no cladding or glazing in it.
+	 */
+	UMaterialInterface* ButcheryMaterial(const TCHAR* Name)
+	{
+		return LoadObject<UMaterialInterface>(nullptr,
+			*FString::Printf(TEXT("%s/M_Butchery_%s.M_Butchery_%s"), *MeshFolder, Name, Name));
+	}
+
 	/** A plain box actor, for floors and slabs. */
 	AStaticMeshActor* PlaceBox(UWorld* World, const FVector& Centre, const FVector& SizeCm,
 		const TCHAR* MaterialName, const FString& Label)
@@ -294,6 +307,22 @@ namespace ButcheryBuild
 			Component->SetMaterial(0, Material);
 		}
 		Actor->SetActorLabel(Label);
+		return Actor;
+	}
+
+	/** As PlaceBox, but skinned from the butchery palette. */
+	AStaticMeshActor* PlaceShellBox(UWorld* World, const FVector& Centre, const FVector& SizeCm,
+		const TCHAR* ButcheryMat, const FString& Label)
+	{
+		AStaticMeshActor* Actor = PlaceBox(World, Centre, SizeCm,
+			FactoryShapeMaterials::MachineFrame, Label);
+		if (Actor != nullptr)
+		{
+			if (UMaterialInterface* Material = ButcheryMaterial(ButcheryMat))
+			{
+				Actor->GetStaticMeshComponent()->SetMaterial(0, Material);
+			}
+		}
 		return Actor;
 	}
 
@@ -375,6 +404,10 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 	}
 
 	int32 Walls = 0, Doors = 0, Stations = 0, RailTiles = 0, Belts = 0, Lights = 0, Missing = 0;
+	int32 LoadedTiles = 0, ShellParts = 0;
+	// Carried across segments so the loaded/empty pattern does not restart at
+	// every corner, which would put a gap at each turn and nowhere else.
+	int32 RunningTile = 0;
 
 	// --- floor ------------------------------------------------------------
 	PlaceBox(World,
@@ -434,8 +467,11 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 					// roof and this one does not: with the sky open the sun and
 					// skylight already light the floor, and bay lamps at the
 					// same intensity simply blow the image out.
-					Light->PointLightComponent->SetIntensity(9000.0f);
-					Light->PointLightComponent->SetAttenuationRadius(1100.0f);
+					// Back up now the shed has a roof: the rooflight strips let
+					// some daylight through, but a covered 130 m hall is lit by
+					// its lamps, not by the sky.
+					Light->PointLightComponent->SetIntensity(26000.0f);
+					Light->PointLightComponent->SetAttenuationRadius(1500.0f);
 					Light->PointLightComponent->SetTemperature(5200.0f);
 					Light->PointLightComponent->bUseTemperature = true;
 					Light->PointLightComponent->SetCastShadows(false);
@@ -484,13 +520,25 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 		for (int32 Tile = 0; Tile < Tiles; ++Tile)
 		{
 			const FVector2D At = A + Direction * ((Tile + 0.5) * (Length / Tiles));
-			if (PlaceAsset(World, TEXT("RAIL_CARCASS_RUN"), Assets[TEXT("RAIL_CARCASS_RUN")],
+
+			// Two loaded modules then an empty one. A line is never uniformly
+			// full -- there are gaps where a carcass has been taken off and
+			// gaps behind a stoppage -- and an unbroken run of them reads as
+			// wallpaper rather than as product.
+			const bool bLoaded = ((Tile + RunningTile) % 3) != 2;
+			const TCHAR* Asset = bLoaded ? TEXT("RAIL_CARCASS_RUN") : TEXT("RAIL_RUN");
+			if (PlaceAsset(World, Asset, Assets[Asset],
 				ToWorld(Plant, At.X, At.Y, 0.0), Yaw,
 				FString::Printf(TEXT("Rail_%d_%d"), Index, Tile)) != nullptr)
 			{
 				++RailTiles;
+				if (bLoaded)
+				{
+					++LoadedTiles;
+				}
 			}
 		}
+		RunningTile += Tiles;
 	}
 
 	// --- lines inside chambers ----------------------------------------------
@@ -620,6 +668,135 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 		}
 	}
 
+	// --- the shed the plant sits in -------------------------------------------
+	//
+	// A food plant is a steel portal frame with insulated cladding, and the
+	// chambers are rooms built inside it -- which is why the interior partitions
+	// stop at 4 m and this does not. Without it the level reads as a floor plan
+	// standing in a field, and the interior has no ceiling for light to bounce
+	// off, so everything looked flatter than it should.
+	{
+		const double Eaves = 8.20;
+		const double Overhang = 1.20;
+		const double W = Plant.Width;
+		const double D = Plant.Depth;
+
+		// Cladding: four walls, outside the chamber footprint.
+		const double Thickness = 0.30;
+		PlaceShellBox(World, ToWorld(Plant, W * 0.5, -Thickness * 0.5, Eaves * 0.5),
+			FVector((W + Thickness * 2) * M, Thickness * M, Eaves * M),
+			TEXT("FoodPlastic"), TEXT("Shell_Wall_S"));
+		PlaceShellBox(World, ToWorld(Plant, W * 0.5, D + Thickness * 0.5, Eaves * 0.5),
+			FVector((W + Thickness * 2) * M, Thickness * M, Eaves * M),
+			TEXT("FoodPlastic"), TEXT("Shell_Wall_N"));
+		PlaceShellBox(World, ToWorld(Plant, -Thickness * 0.5, D * 0.5, Eaves * 0.5),
+			FVector(Thickness * M, D * M, Eaves * M),
+			TEXT("FoodPlastic"), TEXT("Shell_Wall_W"));
+		PlaceShellBox(World, ToWorld(Plant, W + Thickness * 0.5, D * 0.5, Eaves * 0.5),
+			FVector(Thickness * M, D * M, Eaves * M),
+			TEXT("FoodPlastic"), TEXT("Shell_Wall_E"));
+		ShellParts += 4;
+
+		// Portal columns on a 13 x 11 m grid, and the beams between them.
+		const int32 ColumnsX = FMath::RoundToInt(W / 13.0);
+		const int32 ColumnsY = FMath::RoundToInt(D / 11.0);
+		for (int32 IX = 0; IX <= ColumnsX; ++IX)
+		{
+			for (int32 IY = 0; IY <= ColumnsY; ++IY)
+			{
+				const double CX = W * IX / ColumnsX;
+				const double CY = D * IY / ColumnsY;
+				PlaceShellBox(World, ToWorld(Plant, CX, CY, Eaves * 0.5),
+					FVector(0.34 * M, 0.34 * M, Eaves * M),
+					TEXT("SteelBrushed"),
+					FString::Printf(TEXT("Shell_Column_%d_%d"), IX, IY));
+				++ShellParts;
+			}
+
+			const double CX = W * IX / ColumnsX;
+			PlaceShellBox(World, ToWorld(Plant, CX, D * 0.5, Eaves - 0.35),
+				FVector(0.28 * M, D * M, 0.60 * M),
+				TEXT("SteelBrushed"), FString::Printf(TEXT("Shell_Rafter_%d"), IX));
+			++ShellParts;
+		}
+
+		// Yard apron. Without it the building stands on a void and reads as a
+		// model of a shed rather than a shed.
+		PlaceShellBox(World, ToWorld(Plant, W * 0.5, D * 0.5, -0.16),
+			FVector(260.0 * M, 200.0 * M, 0.20 * M),
+			TEXT("Concrete"), TEXT("Shell_Apron"));
+
+		// Vertical cladding ribs. Trapezoidal sheet is what these walls are
+		// made of, and the rib shadow is the only thing that gives a 130 m
+		// elevation any scale at all.
+		for (int32 Side = 0; Side < 2; ++Side)
+		{
+			const double YAt = Side == 0 ? -Thickness : D + Thickness;
+			const int32 Count = FMath::FloorToInt(W / 6.0);
+			for (int32 Index = 0; Index <= Count; ++Index)
+			{
+				PlaceShellBox(World, ToWorld(Plant, W * Index / Count, YAt, Eaves * 0.5),
+					FVector(0.18 * M, 0.22 * M, Eaves * M),
+					TEXT("SteelBrushed"),
+					FString::Printf(TEXT("Shell_Rib_%d_%d"), Side, Index));
+				++ShellParts;
+			}
+		}
+
+		// Eaves fascia, wrapping the top of the cladding.
+		for (int32 Side = 0; Side < 2; ++Side)
+		{
+			const double YAt = Side == 0 ? -Thickness : D + Thickness;
+			PlaceShellBox(World, ToWorld(Plant, W * 0.5, YAt, Eaves - 0.30),
+				FVector((W + Overhang * 2) * M, 0.34 * M, 0.60 * M),
+				TEXT("SteelBrushed"), FString::Printf(TEXT("Shell_Fascia_%d"), Side));
+			++ShellParts;
+		}
+
+		// Loading dock on the west elevation, where dispatch is. Three shutters
+		// with a canopy over them: a plant this size ships on lorries, and a
+		// blank wall where the lorries go is the giveaway that nobody thought
+		// about how product leaves.
+		for (int32 Bay = 0; Bay < 3; ++Bay)
+		{
+			const double DY = 68.0 + Bay * 6.0;
+			PlaceShellBox(World, ToWorld(Plant, -Thickness - 0.10, DY, 2.30),
+				FVector(0.16 * M, 4.00 * M, 4.40 * M),
+				TEXT("SteelBrushed"), FString::Printf(TEXT("Shell_Shutter_%d"), Bay));
+			PlaceShellBox(World, ToWorld(Plant, -1.40, DY, 0.55),
+				FVector(2.60 * M, 3.40 * M, 1.10 * M),
+				TEXT("Concrete"), FString::Printf(TEXT("Shell_DockPad_%d"), Bay));
+			ShellParts += 2;
+		}
+		PlaceShellBox(World, ToWorld(Plant, -2.20, 74.0, 5.10),
+			FVector(4.60 * M, 22.0 * M, 0.30 * M),
+			TEXT("SteelBrushed"), TEXT("Shell_DockCanopy"));
+		++ShellParts;
+
+		// Roof: solid bays with a glazed rooflight strip between each pair, the
+		// way a shed of this size is actually daylit. Without the strips the
+		// interior goes black and needs the bay lamps doing all the work.
+		const int32 Bays = ColumnsY;
+		for (int32 Bay = 0; Bay < Bays; ++Bay)
+		{
+			const double Y0 = D * Bay / Bays;
+			const double Y1 = D * (Bay + 1) / Bays;
+			const double Light = 2.20;
+			const double SolidDepth = (Y1 - Y0) - Light;
+
+			PlaceShellBox(World,
+				ToWorld(Plant, W * 0.5, Y0 + SolidDepth * 0.5, Eaves + 0.15),
+				FVector((W + Overhang * 2) * M, SolidDepth * M, 0.30 * M),
+				TEXT("FoodPlastic"), FString::Printf(TEXT("Shell_Roof_%d"), Bay));
+
+			PlaceShellBox(World,
+				ToWorld(Plant, W * 0.5, Y1 - Light * 0.5, Eaves + 0.15),
+				FVector(W * M, Light * M, 0.08 * M),
+				TEXT("Perspex"), FString::Printf(TEXT("Shell_Rooflight_%d"), Bay));
+			ShellParts += 2;
+		}
+	}
+
 	// --- daylight and sky ----------------------------------------------------
 	if (ADirectionalLight* Sun = World->SpawnActor<ADirectionalLight>(
 		FVector(0.0, 0.0, 1600.0), FRotator(-48.0, -40.0, 0.0)))
@@ -664,10 +841,10 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 		FPostProcessSettings& Settings = Exposure->Settings;
 		Settings.bOverride_AutoExposureMinBrightness = true;
 		Settings.bOverride_AutoExposureMaxBrightness = true;
-		Settings.AutoExposureMinBrightness = 0.25f;
-		Settings.AutoExposureMaxBrightness = 2.2f;
+		Settings.AutoExposureMinBrightness = 0.08f;
+		Settings.AutoExposureMaxBrightness = 3.0f;
 		Settings.bOverride_AutoExposureBias = true;
-		Settings.AutoExposureBias = -0.4f;
+		Settings.AutoExposureBias = 0.6f;
 		Settings.bOverride_BloomIntensity = true;
 		Settings.BloomIntensity = 0.35f;
 	}
@@ -696,9 +873,11 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 	}
 
 	UE_LOG(LogFactorySim, Display,
-		TEXT("Built %s: %d wall panel(s), %d door(s), %d station(s), %d rail tile(s), "
-			 "%d line module(s), %d bay light(s), %d unplaced"),
-		*LevelPath, Walls, Doors, Stations, RailTiles, Belts, Lights, Missing);
+		TEXT("Built %s: %d wall panel(s), %d door(s), %d station(s), "
+			 "%d rail tile(s) of which %d loaded, %d line module(s), "
+			 "%d shell part(s), %d bay light(s), %d unplaced"),
+		*LevelPath, Walls, Doors, Stations, RailTiles, LoadedTiles, Belts,
+		ShellParts, Lights, Missing);
 
 	return Missing == 0 ? 0 : 1;
 }
