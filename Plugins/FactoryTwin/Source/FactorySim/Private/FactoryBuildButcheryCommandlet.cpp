@@ -413,7 +413,7 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 	}
 
 	int32 Walls = 0, Doors = 0, Stations = 0, RailTiles = 0, Belts = 0, Lights = 0, Missing = 0;
-	int32 LoadedTiles = 0, ShellParts = 0, Transfers = 0;
+	int32 LoadedTiles = 0, ShellParts = 0, Transfers = 0, LineEnds = 0;
 	// Carried across segments so the loaded/empty pattern does not restart at
 	// every corner, which would put a gap at each turn and nowhere else.
 	int32 RunningTile = 0;
@@ -628,10 +628,59 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 				FMath::Abs(Direction.X) * LineInfo->Size.X
 				+ FMath::Abs(Direction.Y) * LineInfo->Size.Y, 1.0);
 
-			const int32 Tiles = FMath::Max(1, FMath::FloorToInt(Length / Module));
+			// What the line runs into at each end.
+			//
+			// Every one of these runs used to stop dead in mid-air: 39 of 60
+			// line ends had nothing within six metres of them, because a line
+			// was tiled from one chamber wall to the other and simply stopped.
+			// A belt that ends at nothing is not a belt, it is a prop of one.
+			// Product comes onto a line somewhere and leaves it somewhere, so
+			// each kind now names the unit that does that job -- accumulation
+			// off a belt, points where a rail joins the main route, a gate at
+			// the end of a pen run. Pipe is deliberately exempt: services
+			// entering a wall is what services do.
+			FString EndAsset;
+			if (Group.Kind == TEXT("belt"))          { EndAsset = TEXT("ACCUMULATION_TABLE"); }
+			else if (Group.Kind == TEXT("rail")
+				  || Group.Kind == TEXT("railfull")) { EndAsset = TEXT("RAIL_SWITCH"); }
+			else if (Group.Kind == TEXT("pen"))      { EndAsset = TEXT("PEN_GATE"); }
+
+			const FAssetInfo* EndInfo = Assets.Find(EndAsset);
+			double HeadRoom = 0.0;
+			if (EndInfo != nullptr)
+			{
+				HeadRoom = FMath::Max(
+					FMath::Abs(Direction.X) * EndInfo->Size.X
+					+ FMath::Abs(Direction.Y) * EndInfo->Size.Y, 0.5);
+
+				for (int32 End = 0; End < 2; ++End)
+				{
+					// Facing back down the line, so the pair read as a head and
+					// a tail rather than as two of the same thing pointing away.
+					const FVector2D At = (End == 0)
+						? A + Direction * (HeadRoom * 0.5)
+						: B - Direction * (HeadRoom * 0.5);
+					if (PlaceAsset(World, EndAsset, *EndInfo,
+						ToWorld(Plant, At.X, At.Y, 0.0), Yaw + (End == 0 ? 0.0 : 180.0),
+						FString::Printf(TEXT("%s_%s_%d_End%d"), *Group.Chamber,
+							*Group.Kind, SegIndex, End)) != nullptr)
+					{
+						++LineEnds;
+					}
+				}
+			}
+
+			// Tile only the span between the two end units.
+			const double Run = Length - HeadRoom * 2.0;
+			const int32 Tiles = FMath::Max(1, FMath::FloorToInt(Run / Module));
+			if (Run < Module)
+			{
+				continue;
+			}
 			for (int32 Tile = 0; Tile < Tiles; ++Tile)
 			{
-				const FVector2D At = A + Direction * ((Tile + 0.5) * (Length / Tiles));
+				const FVector2D At = A + Direction
+					* (HeadRoom + (Tile + 0.5) * (Run / Tiles));
 				if (PlaceAsset(World, Asset, *LineInfo,
 					ToWorld(Plant, At.X, At.Y, 0.0), Yaw,
 					FString::Printf(TEXT("%s_%s_%d_%d"), *Group.Chamber, *Group.Kind,
@@ -940,9 +989,10 @@ int32 UFactoryBuildButcheryCommandlet::Main(const FString& Params)
 	UE_LOG(LogFactorySim, Display,
 		TEXT("Built %s: %d wall panel(s), %d door(s), %d station(s), "
 			 "%d rail tile(s) of which %d loaded, %d line module(s), "
-			 "%d transfer module(s), %d shell part(s), %d bay light(s), %d unplaced"),
+			 "%d line end(s), %d transfer module(s), %d shell part(s), "
+			 "%d bay light(s), %d unplaced"),
 		*LevelPath, Walls, Doors, Stations, RailTiles, LoadedTiles, Belts,
-		Transfers, ShellParts, Lights, Missing);
+		LineEnds, Transfers, ShellParts, Lights, Missing);
 
 	return Missing == 0 ? 0 : 1;
 }

@@ -14,7 +14,7 @@ nothing may quietly disagree with it.
 
 import math
 
-from butchery_lib import box, cyl, frame, key_spin, key_stroke, tube
+from butchery_lib import box, cyl, frame, key_spin, key_stroke, ring, tube
 
 LOOP = 60
 RAIL_Z = 3.10
@@ -583,6 +583,59 @@ def infra_pallet_rack():
     return parts, [], None
 
 
+def infra_chill_evaporator():
+    """
+    A ceiling-hung air cooler: the thing that makes a chill room a chill room.
+
+    An equalisation chill hall is a big empty box with rail in it and coolers
+    overhead -- there is no process machinery, because the process is time and
+    cold air. Without the coolers the room reads as an unfinished warehouse
+    somebody happened to hang carcasses in.
+
+    Hung, not floor-standing, so its origin stays at floor level like the rail.
+    """
+    parts = [
+        box("Evap_Body", (3.00, 1.00, 0.80), (0, 0, 4.30), "Stainless"),
+        box("Evap_Tray", (3.10, 1.16, 0.08), (0, 0, 3.86), "SteelBrushed"),
+        box("Evap_EndL", (0.08, 1.04, 0.86), (-1.50, 0, 4.30), "SteelBrushed"),
+        box("Evap_EndR", (0.08, 1.04, 0.86), (1.50, 0, 4.30), "SteelBrushed"),
+        box("Evap_Drain", (0.06, 0.06, 0.60), (1.34, 0.42, 3.56), "Stainless"),
+    ]
+    # Fins on the back, fans on the front. Air is drawn through the coil and
+    # blown out, so this is also the way round it works -- and a cooler is
+    # recognised by its fans, so that is the face that should meet the room.
+    for index in range(7):
+        parts.append(box("Evap_Fin{:d}".format(index), (0.02, 0.10, 0.62),
+                         (-1.20 + index * 0.40, 0.56, 4.30), "SteelBrushed"))
+    for index, (dx, dy) in enumerate(((-0.90, 0.62), (0.90, 0.62))):
+        parts.append(box("Evap_Hanger{:d}".format(index), (0.06, 0.06, 0.66),
+                         (dx, dy, 5.03), "PaintedFrame"))
+        parts.append(box("Evap_Hanger{:d}b".format(index), (0.06, 0.06, 0.66),
+                         (dx, -dy, 5.03), "PaintedFrame"))
+
+    bones = []
+    for side, x in (("A", -0.80), ("B", 0.80)):
+        part = "fan{:s}".format(side)
+        parts.append(cyl("Evap_Hub{:s}".format(side), 0.09, 0.14, (x, -0.60, 4.30),
+                         "SteelBrushed", rot=(math.radians(90), 0, 0), part=part))
+        for blade in range(5):
+            angle = blade * 2.0 * math.pi / 5.0
+            parts.append(box(
+                "Evap_Blade{:s}{:d}".format(side, blade), (0.40, 0.06, 0.16),
+                (x + math.cos(angle) * 0.27, -0.60, 4.30 + math.sin(angle) * 0.27),
+                "SteelBrushed", rot=(0, -(angle + math.pi * 0.5), 0), part=part))
+        parts.append(ring("Evap_Guard{:s}".format(side), 0.38, 0.06, (x, -0.68, 4.30),
+                          "PaintedFrame", part=""))
+        bones.append({"name": part, "head": (x, -0.60, 4.30),
+                      "axis": (0.0, 1.0, 0.0), "length": 0.36})
+
+    def animate(rig):
+        key_spin(rig, "fanA", turns=7, frames=LOOP)
+        key_spin(rig, "fanB", turns=7, frames=LOOP)
+
+    return parts, bones, animate
+
+
 INFRA = {
     "RAIL_RUN": infra_rail_run,
     "RAIL_CARCASS_RUN": infra_rail_carcass_run,
@@ -601,4 +654,5 @@ INFRA = {
     "STRIP_CURTAIN": infra_strip_curtain,
     "BOOT_WASH": infra_boot_wash,
     "PALLET_RACK": infra_pallet_rack,
+    "CHILL_EVAPORATOR": infra_chill_evaporator,
 }

@@ -53,7 +53,8 @@ ASSETS.update(butchery_yard.YARD)
 # Assets that hang from the structure rather than stand on the floor. Their
 # origin stays at floor level -- world zero in the source -- so placing one at
 # a floor position puts the rail at 3.1 m instead of laying it on the ground.
-CEILING_MOUNTED = {"RAIL_RUN", "RAIL_CARCASS_RUN", "RAIL_CURVE", "RAIL_SWITCH"}
+CEILING_MOUNTED = {"RAIL_RUN", "RAIL_CARCASS_RUN", "RAIL_CURVE", "RAIL_SWITCH",
+                   "CHILL_EVAPORATOR"}
 
 
 # ---------------------------------------------------------------------------

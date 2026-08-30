@@ -138,6 +138,18 @@ PLACEMENTS = [
     ("DISPATCH",      "DOCK_LEVELLER",       3),
     ("DISPATCH",      "TRAILER",             2),
     ("DISPATCH",      "PALLET_LOAD",         8),
+
+    # Equalisation chill held six rails and nothing else -- 832 square metres,
+    # the largest chamber in the building, with no equipment in it at all. A
+    # chill hall has no process machinery because the process is time and cold
+    # air, so what belongs here is the coolers that make it cold and the
+    # grading stand where carcasses are judged on the way out.
+    ("CARCASS_CHILL", "CHILL_EVAPORATOR",    5),
+    ("CARCASS_CHILL", "CARCASS_INSPECTION",  2),
+    ("BLAST_CHILL",   "CHILL_EVAPORATOR",    4),
+    ("BLAST_CHILL",   "STRIP_CURTAIN",       4),
+    ("RENDERING",     "SCREW_CONVEYOR",      2),
+    ("BYPRODUCT",     "OFFAL_CHUTE",         2),
 ]
 
 # Assets the plan needs that do not exist yet.
@@ -180,6 +192,14 @@ def point(name, fx, fy):
     return x + w * fx, y + h * fy
 
 
+# How far a line stops short of the wall it runs towards. A line that spans the
+# chamber wall to wall has both ends buried in masonry, and the head and tail
+# units that belong there -- the accumulation table product comes off, the
+# points the rail joins the main route at -- have nowhere to stand. Real lines
+# start and stop inside the room.
+LINE_END_INSET = 4.0
+
+
 def line_positions(chamber_name, count, axis):
     """Evenly spaced line centres inside a chamber, inset from the walls."""
     x, y, w, h = rect(chamber_name)
@@ -189,9 +209,11 @@ def line_positions(chamber_name, count, axis):
         t = (index + 0.5) / count
         t = inset + t * (1.0 - 2.0 * inset)
         if axis == "x":
-            out.append(((x, y + h * t), (x + w, y + h * t)))
+            end = min(LINE_END_INSET, w * 0.25)
+            out.append(((x + end, y + h * t), (x + w - end, y + h * t)))
         else:
-            out.append(((x + w * t, y), (x + w * t, y + h)))
+            end = min(LINE_END_INSET, h * 0.25)
+            out.append(((x + w * t, y + end), (x + w * t, y + h - end)))
     return out
 
 

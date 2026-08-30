@@ -103,6 +103,21 @@
    ]
   },
   {
+   "asset": "CHILL_EVAPORATOR",
+   "file": "SM_CHILL_EVAPORATOR.fbx",
+   "skeletal": true,
+   "bones": [
+    "root",
+    "fanA",
+    "fanB"
+   ],
+   "size": [
+    3.1,
+    1.71,
+    2.1
+   ]
+  },
+  {
    "asset": "CO2_STUNNER",
    "file": "SM_CO2_STUNNER.fbx",
    "skeletal": true,
@@ -184,7 +199,7 @@
     "beater"
    ],
    "size": [
-    2.2,
+    2.235,
     3.7,
     2.4
    ]
@@ -387,7 +402,7 @@
    "size": [
     0.6,
     0.41,
-    0.207
+    0.208
    ]
   },
   {
@@ -657,7 +672,7 @@
    "skeletal": false,
    "bones": [],
    "size": [
-    0.432,
+    0.429,
     1.7,
     1.25
    ]
