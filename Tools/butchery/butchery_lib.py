@@ -243,12 +243,26 @@ def cull_buried_faces(parts, margin=1e-4):
     is exact; a cylinder's bounding box is larger than the cylinder at the
     corners and would delete faces sitting legitimately beside it.
 
+    Every corner of the face must be inside, not merely its centre. A face's
+    centre is not where the face is: three metres of pen rail threaded through a
+    seven-centimetre post has side faces that run the whole length, so every one
+    of their centres sits at the middle -- inside the post -- and testing centres
+    deletes the entire rail on the strength of the 7 cm it passes through.
+
     Faces exactly flush with an occluder go too. Two parts meeting face to face
     have two coincident surfaces that z-fight and are invisible either way, so
     dropping both is right -- the hole it leaves is on the inside.
 
-    @return (faces removed, faces kept)
+    @return (faces removed, faces kept, names of wholly buried parts)
     """
+    # box() sets obj.scale directly and matrix_world is evaluated lazily, so
+    # without this every occluder reads back as the 1 m unit cube it was before
+    # it was sized. That does not fail loudly: it culls whatever happens to sit
+    # near a part's centre and spares whatever sits outside a metre of it, which
+    # looks like a plausible saving right up until you notice a crate has been
+    # reduced to one handle.
+    bpy.context.view_layer.update()
+
     occluders = []
     for obj in parts:
         if obj.get("prim") == "box":
@@ -258,6 +272,7 @@ def cull_buried_faces(parts, margin=1e-4):
 
     removed = 0
     kept = 0
+    buried = []
     limit = 0.5 + margin
 
     for obj in parts:
@@ -268,15 +283,31 @@ def cull_buried_faces(parts, margin=1e-4):
 
         doomed = []
         for face in mesh.faces:
-            centre = matrix @ face.calc_center_median()
+            corners = [matrix @ vert.co for vert in face.verts]
             for occluder, inverse in occluders:
                 if occluder is obj:
                     continue
-                local = inverse @ centre
-                if (abs(local.x) <= limit and abs(local.y) <= limit
-                        and abs(local.z) <= limit):
+                inside = True
+                for corner in corners:
+                    local = inverse @ corner
+                    if (abs(local.x) > limit or abs(local.y) > limit
+                            or abs(local.z) > limit):
+                        inside = False
+                        break
+                if inside:
                     doomed.append(face)
                     break
+
+        # Culling thins a part; it must never delete one. A part with every
+        # face buried is not a saving, it is a part modelled inside another
+        # solid -- and if it is animated, deleting it leaves a bone driving
+        # nothing at all. Keep it whole and name it, so the fault gets fixed
+        # where it was made instead of being quietly swept up here.
+        if doomed and len(doomed) == len(mesh.faces):
+            buried.append(obj.name)
+            kept += len(mesh.faces)
+            mesh.free()
+            continue
 
         removed += len(doomed)
         kept += len(mesh.faces) - len(doomed)
@@ -290,7 +321,7 @@ def cull_buried_faces(parts, margin=1e-4):
             obj.data.update()
         mesh.free()
 
-    return removed, kept
+    return removed, kept, buried
 
 
 def assemble(parts, name):
@@ -303,7 +334,10 @@ def assemble(parts, name):
     """
     # Before the groups are written, because the group covers every vertex the
     # object still has and culling changes that count.
-    cull_buried_faces(parts)
+    _, _, buried = cull_buried_faces(parts)
+    if buried:
+        print("  buried inside another solid, kept whole: {}".format(
+            ", ".join(sorted(buried))))
 
     # A part swallowed whole by another leaves nothing to join, and an empty
     # mesh in the join list produces a warning and no geometry.

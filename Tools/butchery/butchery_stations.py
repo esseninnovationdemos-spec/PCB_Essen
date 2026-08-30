@@ -176,8 +176,16 @@ def station_dehairer():
         box("Dehairer_SideL", (0.08, 3.00, 1.90), (-1.06, 0, 1.37), "Stainless"),
         box("Dehairer_SideR", (0.08, 3.00, 1.90), (1.06, 0, 1.37), "Stainless"),
         box("Dehairer_Floor", (2.20, 3.00, 0.10), (0, 0, 0.47), "SteelBrushed"),
-        box("Dehairer_WindowFrame", (0.06, 1.20, 0.80), (-1.06, 0, 1.60), "PaintedFrame"),
-        box("Dehairer_WindowGlass", (0.02, 1.10, 0.70), (-1.08, 0, 1.60), "Perspex"),
+        # Proud of the panel, not inside it. Both sat at x -1.06 and -1.08,
+        # within the side panel's own 80 mm thickness (-1.10 to -1.02), so the
+        # inspection window was a window buried in the wall it was meant to be
+        # a window in. The surround is four bars rather than a plate, because a
+        # plate over glazing is a panel, and hides what it frames.
+        box("Dehairer_WindowGlass", (0.02, 1.10, 0.70), (-1.105, 0, 1.60), "Perspex"),
+        box("Dehairer_WindowTop", (0.04, 1.24, 0.06), (-1.115, 0, 1.98), "PaintedFrame"),
+        box("Dehairer_WindowBot", (0.04, 1.24, 0.06), (-1.115, 0, 1.22), "PaintedFrame"),
+        box("Dehairer_WindowL", (0.04, 0.06, 0.76), (-1.115, -0.59, 1.60), "PaintedFrame"),
+        box("Dehairer_WindowR", (0.04, 0.06, 0.76), (-1.115, 0.59, 1.60), "PaintedFrame"),
         box("Dehairer_LegFL", (0.10, 0.10, 0.42), (-0.95, -1.35, 0.21), "PaintedFrame"),
         box("Dehairer_LegFR", (0.10, 0.10, 0.42), (0.95, -1.35, 0.21), "PaintedFrame"),
         box("Dehairer_LegBL", (0.10, 0.10, 0.42), (-0.95, 1.35, 0.21), "PaintedFrame"),
