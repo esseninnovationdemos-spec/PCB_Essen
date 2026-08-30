@@ -154,6 +154,25 @@ def build(name):
         bpy.ops.object.mode_set(mode="OBJECT")
 
     mesh.data.calc_loop_triangles()
+
+    # Every bone must still weigh some geometry. Culling buried faces can erase
+    # a part outright -- correctly, if it was invisible -- and that leaves a
+    # bone animating nothing. The failure is silent: the rig exports, the
+    # animation plays, and there is simply nothing on screen moving.
+    if bones:
+        weighted = {group.name: 0 for group in mesh.vertex_groups}
+        for vertex in mesh.data.vertices:
+            for entry in vertex.groups:
+                if entry.weight > 0.5:
+                    weighted[mesh.vertex_groups[entry.group].name] += 1
+        starved = [spec["name"] for spec in bones
+                   if weighted.get(spec["name"], 0) == 0]
+        if starved:
+            raise RuntimeError(
+                "bones with no geometry after culling: {} -- the parts skinned "
+                "to them are buried inside another solid and cannot be seen"
+                .format(sorted(starved)))
+
     path = export(name, mesh, rig)
 
     return {

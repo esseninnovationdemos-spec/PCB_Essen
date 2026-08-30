@@ -243,14 +243,15 @@ def yard_render_tank():
         box("Tank_Valve", (0.16, 0.16, 0.22), (1.22, 0, 0.60), "Copper"),
         box("Tank_Ladder", (0.44, 0.05, 3.40), (0, -1.18, 1.80), "SteelBrushed"),
     ]
-    for index, z in enumerate((0.55, 1.55, 2.55)):
-        for angle in (0.4, 2.5, 4.6):
-            parts.append(box("Tank_Leg{:d}_{:.0f}".format(index, angle * 10),
-                             (0.10, 0.10, 0.44),
-                             (math.cos(angle) * 1.02, math.sin(angle) * 1.02, 0.22),
-                             "PaintedFrame") if index == 0 else
-                         box("Tank_Band{:d}_{:.0f}".format(index, angle * 10),
-                             (0.06, 0.06, 0.06), (0, 0, z), "SteelBrushed"))
+    # Three legs on the skirt. The earlier version of this loop also emitted a
+    # "band" box at the tank's own axis for two of the three heights, three
+    # times each -- six identical solids buried inside the shell, invisible and
+    # paid for on every frame.
+    for angle in (0.4, 2.5, 4.6):
+        parts.append(box("Tank_Leg{:.0f}".format(angle * 10),
+                         (0.10, 0.10, 0.44),
+                         (math.cos(angle) * 1.02, math.sin(angle) * 1.02, 0.22),
+                         "PaintedFrame"))
     return parts, [], None
 
 

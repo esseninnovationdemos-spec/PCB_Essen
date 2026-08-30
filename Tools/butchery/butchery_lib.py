@@ -20,6 +20,7 @@ the pose channel is always Y and never needs a per-part special case.
 
 import math
 
+import bmesh  # pylint: disable=import-error
 import bpy  # pylint: disable=import-error
 from mathutils import Vector  # pylint: disable=import-error
 
@@ -80,12 +81,36 @@ def material(name):
 # geometry ends up rigid-skinned to -- "" means it belongs to the static body.
 # ---------------------------------------------------------------------------
 
-def _register(obj, name, mat_name, part):
+def _register(obj, name, mat_name, part, prim="box"):
     obj.name = name
     obj.data.name = name
     obj.data.materials.append(material(mat_name))
     obj["part"] = part
+    # Which primitive this is. Only boxes are used as occluders when culling
+    # buried faces: a box's bounding volume is the box, where a cylinder's
+    # overestimates it at the corners and would eat faces that are actually
+    # visible beside it.
+    obj["prim"] = prim
     return obj
+
+
+def _auto_verts(radius):
+    """
+    Segment count for a cylinder, from its radius.
+
+    A 12 mm pipe drawn with 24 sides costs the same as a 1 m tank drawn with
+    24 sides and is a smooth circle roughly two pixels across. Below is what
+    actually reads at the distance each size is seen from.
+    """
+    if radius <= 0.03:
+        return 6
+    if radius <= 0.08:
+        return 8
+    if radius <= 0.20:
+        return 12
+    if radius <= 0.50:
+        return 16
+    return 24
 
 
 def box(name, size, loc, mat_name="Stainless", rot=(0, 0, 0), part=""):
@@ -97,15 +122,39 @@ def box(name, size, loc, mat_name="Stainless", rot=(0, 0, 0), part=""):
 
 
 def cyl(name, radius, depth, loc, mat_name="Stainless", rot=(0, 0, 0),
-        part="", verts=24):
-    """A cylinder along local Z unless rotated."""
+        part="", verts=None):
+    """A cylinder along local Z unless rotated. Resolution follows the radius."""
     bpy.ops.mesh.primitive_cylinder_add(
-        radius=radius, depth=depth, location=loc, rotation=rot, vertices=verts)
-    return _register(bpy.context.active_object, name, mat_name, part)
+        radius=radius, depth=depth, location=loc, rotation=rot,
+        vertices=verts if verts else _auto_verts(radius))
+    return _register(bpy.context.active_object, name, mat_name, part, prim="cyl")
+
+
+def ring(name, radius, depth, loc, mat_name="Stainless", rot=(0, 0, 0),
+         part="", verts=None):
+    """
+    An open ring: a cylinder with both end caps removed.
+
+    A fan guard drawn as a solid cylinder is a plate over the fan -- it hides
+    the thing it is guarding, and the animation behind it is paid for and never
+    seen. Dropping the caps also costs nothing: the caps are the expensive part
+    of a low-poly cylinder, being two n-gons that triangulate into 2*(n-2).
+    """
+    obj = cyl(name, radius, depth, loc, mat_name, rot, part, verts)
+    mesh = bmesh.new()
+    mesh.from_mesh(obj.data)
+    mesh.faces.ensure_lookup_table()
+    caps = [f for f in mesh.faces if abs(abs(f.normal.z) - 1.0) < 1e-3]
+    if caps:
+        bmesh.ops.delete(mesh, geom=caps, context="FACES_ONLY")
+        mesh.to_mesh(obj.data)
+        obj.data.update()
+    mesh.free()
+    return obj
 
 
 def tube(name, radius, depth, loc, mat_name="Stainless", rot=(0, 0, 0),
-         part="", verts=16):
+         part="", verts=None):
     """Alias for a thin cylinder, for pipes and rails. Reads better in a part list."""
     return cyl(name, radius, depth, loc, mat_name, rot, part, verts)
 
@@ -181,6 +230,69 @@ def unwrap(obj):
     bpy.ops.object.mode_set(mode="OBJECT")
 
 
+def cull_buried_faces(parts, margin=1e-4):
+    """
+    Deletes faces whose centre lies inside another part.
+
+    These assets are built by overlapping primitives -- a leg pushed into a
+    bench top, a lamp sitting on a roof, a shaft running through a housing --
+    and every surface inside another solid is geometry nobody can ever see.
+    On a library assembled this way that is most of the triangles.
+
+    Only boxes occlude. A box's bounding volume is exactly the box, so the test
+    is exact; a cylinder's bounding box is larger than the cylinder at the
+    corners and would delete faces sitting legitimately beside it.
+
+    Faces exactly flush with an occluder go too. Two parts meeting face to face
+    have two coincident surfaces that z-fight and are invisible either way, so
+    dropping both is right -- the hole it leaves is on the inside.
+
+    @return (faces removed, faces kept)
+    """
+    occluders = []
+    for obj in parts:
+        if obj.get("prim") == "box":
+            # The cube primitive is built at +/-0.5 and scaled by the object, so
+            # its local half-extent is always 0.5 whatever size it ended up.
+            occluders.append((obj, obj.matrix_world.inverted()))
+
+    removed = 0
+    kept = 0
+    limit = 0.5 + margin
+
+    for obj in parts:
+        matrix = obj.matrix_world
+        mesh = bmesh.new()
+        mesh.from_mesh(obj.data)
+        mesh.faces.ensure_lookup_table()
+
+        doomed = []
+        for face in mesh.faces:
+            centre = matrix @ face.calc_center_median()
+            for occluder, inverse in occluders:
+                if occluder is obj:
+                    continue
+                local = inverse @ centre
+                if (abs(local.x) <= limit and abs(local.y) <= limit
+                        and abs(local.z) <= limit):
+                    doomed.append(face)
+                    break
+
+        removed += len(doomed)
+        kept += len(mesh.faces) - len(doomed)
+        if doomed:
+            bmesh.ops.delete(mesh, geom=doomed, context="FACES")
+            # Verts left with no face are dead weight in the export.
+            loose = [v for v in mesh.verts if not v.link_faces]
+            if loose:
+                bmesh.ops.delete(mesh, geom=loose, context="VERTS")
+            mesh.to_mesh(obj.data)
+            obj.data.update()
+        mesh.free()
+
+    return removed, kept
+
+
 def assemble(parts, name):
     """
     Join a part list into one mesh, preserving which bone each part belongs to.
@@ -189,6 +301,14 @@ def assemble(parts, name):
     through it; joining first and assigning after would need the original vertex
     ranges, which the join does not report.
     """
+    # Before the groups are written, because the group covers every vertex the
+    # object still has and culling changes that count.
+    cull_buried_faces(parts)
+
+    # A part swallowed whole by another leaves nothing to join, and an empty
+    # mesh in the join list produces a warning and no geometry.
+    parts = [obj for obj in parts if len(obj.data.polygons) > 0]
+
     for obj in parts:
         part = obj.get("part", "")
         group = obj.vertex_groups.new(name=part if part else "root")

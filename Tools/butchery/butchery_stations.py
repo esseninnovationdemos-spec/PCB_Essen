@@ -15,7 +15,7 @@ Bones point along their own axis of motion; see butchery_lib.
 
 import math
 
-from butchery_lib import box, cyl, frame, key_spin, key_stroke, rail_section, tube
+from butchery_lib import box, cyl, frame, ring, key_spin, key_stroke, rail_section, tube
 
 LOOP = 60          # frames per loop, 2 s at 30 fps
 RAIL_Z = 3.10      # overhead rail height, the datum the whole kill floor hangs from
@@ -475,21 +475,31 @@ def station_blast_chiller():
         box("Chill_Display", (0.22, 0.02, 0.14), (1.60, -2.28, 1.75), "Perspex"),
     ] + rail_section("Chill_Rail", 5.80, (0, 0, 0), RAIL_Z)
 
+    # Fans on the face of the evaporator, not inside it.
+    #
+    # They were originally at y = 0.30 and 1.30, which is within the body box
+    # (y -0.15 to 1.75) -- entirely enclosed by an opaque solid, so nothing of
+    # them was ever visible and the two animated bones drove geometry no camera
+    # could see. Side by side on the intake face instead, where a chill-tunnel
+    # fan actually sits and where the animation is worth paying for.
     bones = []
-    for side, y in (("A", 0.30), ("B", 1.30)):
+    for side, x in (("A", -0.75), ("B", 0.75)):
         part = "fan{:s}".format(side)
-        parts.append(cyl("Chill_FanHub{:s}".format(side), 0.10, 0.16, (0, y, 2.70),
+        parts.append(cyl("Chill_FanHub{:s}".format(side), 0.10, 0.16, (x, -0.62, 2.70),
                          "SteelBrushed", rot=(math.radians(90), 0, 0), part=part))
         for blade in range(5):
             angle = blade * 2.0 * math.pi / 5.0
             radius = 0.30
+            # About Y, because that is the axis the fan turns on. Rotating a
+            # blade about Z leaves it broadside to the airflow: it reads as a
+            # tab stuck to the rim rather than a blade, and it does not sweep.
             parts.append(box(
                 "Chill_Blade{:s}{:d}".format(side, blade), (0.44, 0.06, 0.18),
-                (math.cos(angle) * radius, y, 2.70 + math.sin(angle) * radius),
-                "SteelBrushed", rot=(0, 0, 0), part=part))
-        parts.append(cyl("Chill_Grille{:s}".format(side), 0.42, 0.03, (0, y - 0.18, 2.70),
-                         "PaintedFrame", rot=(math.radians(90), 0, 0), part=""))
-        bones.append({"name": part, "head": (0.0, y, 2.70),
+                (x + math.cos(angle) * radius, -0.62, 2.70 + math.sin(angle) * radius),
+                "SteelBrushed", rot=(0, -(angle + math.pi * 0.5), 0), part=part))
+        parts.append(ring("Chill_Grille{:s}".format(side), 0.42, 0.06, (x, -0.70, 2.70),
+                          "PaintedFrame", rot=(math.radians(90), 0, 0), part=""))
+        bones.append({"name": part, "head": (x, -0.62, 2.70),
                       "axis": (0.0, 1.0, 0.0), "length": 0.40})
 
     def animate(rig):
