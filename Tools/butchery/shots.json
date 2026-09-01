@@ -1,0 +1,596 @@
+[
+ {
+  "name": "PLANT_NW",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -96.2,
+   -70.4,
+   72.0
+  ],
+  "look": [
+   0.0,
+   1.76,
+   3.0
+  ],
+  "to": [
+   -83.73,
+   -84.56,
+   68.0
+  ],
+  "seconds": 4.5,
+  "group": "plant",
+  "note": "whole plant from the south-west"
+ },
+ {
+  "name": "PLANT_NE",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   96.2,
+   -70.4,
+   72.0
+  ],
+  "look": [
+   0.0,
+   1.76,
+   3.0
+  ],
+  "to": [
+   106.3,
+   -54.46,
+   68.0
+  ],
+  "seconds": 4.5,
+  "group": "plant",
+  "note": "whole plant from the south-east"
+ },
+ {
+  "name": "PLANT_SE",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   96.2,
+   70.4,
+   72.0
+  ],
+  "look": [
+   0.0,
+   1.76,
+   3.0
+  ],
+  "to": [
+   84.28,
+   84.6,
+   68.0
+  ],
+  "seconds": 4.5,
+  "group": "plant",
+  "note": "whole plant from the north-east"
+ },
+ {
+  "name": "PLANT_SW",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -96.2,
+   70.4,
+   72.0
+  ],
+  "look": [
+   0.0,
+   1.76,
+   3.0
+  ],
+  "to": [
+   -105.75,
+   54.51,
+   68.0
+  ],
+  "seconds": 4.5,
+  "group": "plant",
+  "note": "whole plant from the north-west"
+ },
+ {
+  "name": "PLANT_AXIS",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -89.0,
+   -7.04,
+   34.0
+  ],
+  "look": [
+   26.0,
+   0.0,
+   3.0
+  ],
+  "to": [
+   -87.28,
+   -21.0,
+   32.0
+  ],
+  "seconds": 4.5,
+  "group": "plant",
+  "note": "along the building, cut away"
+ },
+ {
+  "name": "CH_LAIRAGE",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -71.84,
+   -52.4,
+   16.12
+  ],
+  "look": [
+   -49.48,
+   -28.48,
+   1.6
+  ],
+  "to": [
+   -66.87,
+   -56.23,
+   16.12
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Lairage & race"
+ },
+ {
+  "name": "CH_KILL_FLOOR",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -46.56,
+   -55.6,
+   21.08
+  ],
+  "look": [
+   -17.32,
+   -28.48,
+   1.6
+  ],
+  "to": [
+   -40.85,
+   -60.68,
+   21.08
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Stun \u00b7 bleed \u00b7 scald \u00b7 dehair \u00b7 singe"
+ },
+ {
+  "name": "CH_EVISCERATION",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -9.2,
+   -54.0,
+   18.6
+  ],
+  "look": [
+   16.6,
+   -28.48,
+   1.6
+  ],
+  "to": [
+   -3.86,
+   -58.45,
+   18.6
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Eviscerate \u00b7 split \u00b7 inspect"
+ },
+ {
+  "name": "CH_BLAST_CHILL",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   22.8,
+   -54.0,
+   18.6
+  ],
+  "look": [
+   48.6,
+   -28.48,
+   1.6
+  ],
+  "to": [
+   28.14,
+   -58.45,
+   18.6
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Blast chill tunnels"
+ },
+ {
+  "name": "CH_HYGIENE",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -71.84,
+   -22.4,
+   16.12
+  ],
+  "look": [
+   -52.6,
+   1.52,
+   1.6
+  ],
+  "to": [
+   -66.92,
+   -25.63,
+   16.12
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Welfare \u00b7 boot wash \u00b7 laundry"
+ },
+ {
+  "name": "CH_PLANT_ROOM",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -49.84,
+   -22.4,
+   16.12
+  ],
+  "look": [
+   -31.64,
+   1.52,
+   1.6
+  ],
+  "to": [
+   -44.94,
+   -25.43,
+   16.12
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Refrigeration \u00b7 compressors"
+ },
+ {
+  "name": "CH_RENDERING",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -29.84,
+   -22.4,
+   16.12
+  ],
+  "look": [
+   -10.6,
+   1.52,
+   1.6
+  ],
+  "to": [
+   -24.92,
+   -25.63,
+   16.12
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Inedible rendering"
+ },
+ {
+  "name": "CH_BYPRODUCT",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -7.84,
+   -22.4,
+   16.12
+  ],
+  "look": [
+   14.52,
+   1.52,
+   1.6
+  ],
+  "to": [
+   -2.87,
+   -26.23,
+   16.12
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Red & green offal"
+ },
+ {
+  "name": "CH_CARCASS_CHILL",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   20.12,
+   -24.8,
+   19.84
+  ],
+  "look": [
+   47.64,
+   1.52,
+   1.6
+  ],
+  "to": [
+   25.65,
+   -29.57,
+   19.84
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Equalisation chill"
+ },
+ {
+  "name": "CH_DISPATCH",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -71.16,
+   8.4,
+   14.88
+  ],
+  "look": [
+   -50.52,
+   30.48,
+   1.6
+  ],
+  "to": [
+   -66.57,
+   4.87,
+   14.88
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Dock & load-out"
+ },
+ {
+  "name": "CH_COLD_STORE",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -47.2,
+   6.0,
+   18.6
+  ],
+  "look": [
+   -21.4,
+   30.48,
+   1.6
+  ],
+  "to": [
+   -42.05,
+   1.53,
+   18.6
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Palletised cold store"
+ },
+ {
+  "name": "CH_PACKING",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -15.2,
+   6.0,
+   18.6
+  ],
+  "look": [
+   10.6,
+   30.48,
+   1.6
+  ],
+  "to": [
+   -10.05,
+   1.53,
+   18.6
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Vacuum \u00b7 detect \u00b7 carton"
+ },
+ {
+  "name": "CH_CUTTING_HALL",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   14.76,
+   3.6,
+   22.32
+  ],
+  "look": [
+   45.72,
+   30.48,
+   1.6
+  ],
+  "to": [
+   20.46,
+   -1.81,
+   22.32
+  ],
+  "seconds": 2.6,
+  "group": "chamber",
+  "note": "Deboning & trimming"
+ },
+ {
+  "name": "LINE_LAIRAGE",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -72.0,
+   -27.0,
+   7.5
+  ],
+  "look": [
+   -46.88,
+   -29.0,
+   2.0
+  ],
+  "to": [
+   -71.92,
+   -31.83,
+   7.5
+  ],
+  "seconds": 2.6,
+  "group": "line",
+  "note": "5 x Pen divider"
+ },
+ {
+  "name": "LINE_KILL_FLOOR",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -44.0,
+   -27.0,
+   7.5
+  ],
+  "look": [
+   -13.92,
+   -29.0,
+   2.0
+  ],
+  "to": [
+   -43.83,
+   -32.78,
+   7.5
+  ],
+  "seconds": 2.6,
+  "group": "line",
+  "note": "2 x Kill line"
+ },
+ {
+  "name": "LINE_EVISCERATION",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -8.0,
+   -27.0,
+   7.5
+  ],
+  "look": [
+   19.6,
+   -29.0,
+   2.0
+  ],
+  "to": [
+   -7.87,
+   -32.3,
+   7.5
+  ],
+  "seconds": 2.6,
+  "group": "line",
+  "note": "2 x Dressing line"
+ },
+ {
+  "name": "LINE_BLAST_CHILL",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   24.0,
+   -27.0,
+   7.5
+  ],
+  "look": [
+   51.6,
+   -29.0,
+   2.0
+  ],
+  "to": [
+   24.13,
+   -32.3,
+   7.5
+  ],
+  "seconds": 2.6,
+  "group": "line",
+  "note": "4 x Chill tunnel"
+ },
+ {
+  "name": "LINE_CARCASS_CHILL",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   22.0,
+   3.0,
+   7.5
+  ],
+  "look": [
+   50.84,
+   1.0,
+   2.0
+  ],
+  "to": [
+   22.15,
+   -2.54,
+   7.5
+  ],
+  "seconds": 2.6,
+  "group": "line",
+  "note": "6 x Chill rail"
+ },
+ {
+  "name": "LINE_PLANT_ROOM",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -34.0,
+   -21.0,
+   7.5
+  ],
+  "look": [
+   -32.0,
+   4.12,
+   2.0
+  ],
+  "to": [
+   -29.17,
+   -20.92,
+   7.5
+  ],
+  "seconds": 2.6,
+  "group": "line",
+  "note": "2 x Pipe bridge"
+ },
+ {
+  "name": "LINE_BYPRODUCT",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   -8.0,
+   3.0,
+   7.5
+  ],
+  "look": [
+   17.12,
+   1.0,
+   2.0
+  ],
+  "to": [
+   -7.92,
+   -1.83,
+   7.5
+  ],
+  "seconds": 2.6,
+  "group": "line",
+  "note": "2 x Offal line"
+ },
+ {
+  "name": "LINE_CUTTING_HALL",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   43.0,
+   9.0,
+   7.5
+  ],
+  "look": [
+   45.0,
+   32.88,
+   2.0
+  ],
+  "to": [
+   47.59,
+   9.06,
+   7.5
+  ],
+  "seconds": 2.6,
+  "group": "line",
+  "note": "4 x Deboning line"
+ },
+ {
+  "name": "LINE_PACKING",
+  "level": "/Game/level5_cutaway",
+  "from": [
+   8.0,
+   9.0,
+   7.5
+  ],
+  "look": [
+   10.0,
+   32.88,
+   2.0
+  ],
+  "to": [
+   12.59,
+   9.06,
+   7.5
+  ],
+  "seconds": 2.6,
+  "group": "line",
+  "note": "3 x Packing line"
+ }
+]

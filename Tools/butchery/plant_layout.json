@@ -1,0 +1,688 @@
+{
+ "building": {
+  "width": 130.0,
+  "depth": 88.0,
+  "eaves": 8.0,
+  "rail_height": 3.1
+ },
+ "chambers": [
+  {
+   "name": "LAIRAGE",
+   "x": 2.0,
+   "y": 2.0,
+   "w": 26.0,
+   "h": 26.0,
+   "zone": "dirty",
+   "temperature": null,
+   "label": "Lairage & race"
+  },
+  {
+   "name": "KILL_FLOOR",
+   "x": 30.0,
+   "y": 2.0,
+   "w": 34.0,
+   "h": 26.0,
+   "zone": "dirty",
+   "temperature": null,
+   "label": "Stun \u00b7 bleed \u00b7 scald \u00b7 dehair \u00b7 singe"
+  },
+  {
+   "name": "EVISCERATION",
+   "x": 66.0,
+   "y": 2.0,
+   "w": 30.0,
+   "h": 26.0,
+   "zone": "clean",
+   "temperature": 12.0,
+   "label": "Eviscerate \u00b7 split \u00b7 inspect"
+  },
+  {
+   "name": "BLAST_CHILL",
+   "x": 98.0,
+   "y": 2.0,
+   "w": 30.0,
+   "h": 26.0,
+   "zone": "chilled",
+   "temperature": -8.0,
+   "label": "Blast chill tunnels"
+  },
+  {
+   "name": "HYGIENE",
+   "x": 2.0,
+   "y": 32.0,
+   "w": 20.0,
+   "h": 26.0,
+   "zone": "support",
+   "temperature": null,
+   "label": "Welfare \u00b7 boot wash \u00b7 laundry"
+  },
+  {
+   "name": "PLANT_ROOM",
+   "x": 24.0,
+   "y": 32.0,
+   "w": 18.0,
+   "h": 26.0,
+   "zone": "support",
+   "temperature": null,
+   "label": "Refrigeration \u00b7 compressors"
+  },
+  {
+   "name": "RENDERING",
+   "x": 44.0,
+   "y": 32.0,
+   "w": 20.0,
+   "h": 26.0,
+   "zone": "dirty",
+   "temperature": null,
+   "label": "Inedible rendering"
+  },
+  {
+   "name": "BYPRODUCT",
+   "x": 66.0,
+   "y": 32.0,
+   "w": 26.0,
+   "h": 26.0,
+   "zone": "clean",
+   "temperature": 10.0,
+   "label": "Red & green offal"
+  },
+  {
+   "name": "CARCASS_CHILL",
+   "x": 96.0,
+   "y": 32.0,
+   "w": 32.0,
+   "h": 26.0,
+   "zone": "chilled",
+   "temperature": 2.0,
+   "label": "Equalisation chill"
+  },
+  {
+   "name": "DISPATCH",
+   "x": 2.0,
+   "y": 62.0,
+   "w": 24.0,
+   "h": 24.0,
+   "zone": "chilled",
+   "temperature": 4.0,
+   "label": "Dock & load-out"
+  },
+  {
+   "name": "COLD_STORE",
+   "x": 28.0,
+   "y": 62.0,
+   "w": 30.0,
+   "h": 24.0,
+   "zone": "chilled",
+   "temperature": -2.0,
+   "label": "Palletised cold store"
+  },
+  {
+   "name": "PACKING",
+   "x": 60.0,
+   "y": 62.0,
+   "w": 30.0,
+   "h": 24.0,
+   "zone": "chilled",
+   "temperature": 6.0,
+   "label": "Vacuum \u00b7 detect \u00b7 carton"
+  },
+  {
+   "name": "CUTTING_HALL",
+   "x": 92.0,
+   "y": 62.0,
+   "w": 36.0,
+   "h": 24.0,
+   "zone": "chilled",
+   "temperature": 10.0,
+   "label": "Deboning & trimming"
+  }
+ ],
+ "lines": [
+  {
+   "chamber": "LAIRAGE",
+   "count": 5,
+   "axis": "x",
+   "kind": "pen",
+   "label": "Pen divider",
+   "segments": [
+    {
+     "ax": 6.0,
+     "ay": 7.5120000000000005,
+     "bx": 24.0,
+     "by": 7.5120000000000005
+    },
+    {
+     "ax": 6.0,
+     "ay": 11.256,
+     "bx": 24.0,
+     "by": 11.256
+    },
+    {
+     "ax": 6.0,
+     "ay": 15.0,
+     "bx": 24.0,
+     "by": 15.0
+    },
+    {
+     "ax": 6.0,
+     "ay": 18.744,
+     "bx": 24.0,
+     "by": 18.744
+    },
+    {
+     "ax": 6.0,
+     "ay": 22.488,
+     "bx": 24.0,
+     "by": 22.488
+    }
+   ]
+  },
+  {
+   "chamber": "KILL_FLOOR",
+   "count": 2,
+   "axis": "x",
+   "kind": "rail",
+   "label": "Kill line",
+   "segments": [
+    {
+     "ax": 34.0,
+     "ay": 10.32,
+     "bx": 60.0,
+     "by": 10.32
+    },
+    {
+     "ax": 34.0,
+     "ay": 19.68,
+     "bx": 60.0,
+     "by": 19.68
+    }
+   ]
+  },
+  {
+   "chamber": "EVISCERATION",
+   "count": 2,
+   "axis": "x",
+   "kind": "rail",
+   "label": "Dressing line",
+   "segments": [
+    {
+     "ax": 70.0,
+     "ay": 10.32,
+     "bx": 92.0,
+     "by": 10.32
+    },
+    {
+     "ax": 70.0,
+     "ay": 19.68,
+     "bx": 92.0,
+     "by": 19.68
+    }
+   ]
+  },
+  {
+   "chamber": "BLAST_CHILL",
+   "count": 4,
+   "axis": "x",
+   "kind": "railfull",
+   "label": "Chill tunnel",
+   "segments": [
+    {
+     "ax": 102.0,
+     "ay": 7.98,
+     "bx": 124.0,
+     "by": 7.98
+    },
+    {
+     "ax": 102.0,
+     "ay": 12.66,
+     "bx": 124.0,
+     "by": 12.66
+    },
+    {
+     "ax": 102.0,
+     "ay": 17.34,
+     "bx": 124.0,
+     "by": 17.34
+    },
+    {
+     "ax": 102.0,
+     "ay": 22.02,
+     "bx": 124.0,
+     "by": 22.02
+    }
+   ]
+  },
+  {
+   "chamber": "CARCASS_CHILL",
+   "count": 6,
+   "axis": "x",
+   "kind": "railfull",
+   "label": "Chill rail",
+   "segments": [
+    {
+     "ax": 100.0,
+     "ay": 37.2,
+     "bx": 124.0,
+     "by": 37.2
+    },
+    {
+     "ax": 100.0,
+     "ay": 40.32,
+     "bx": 124.0,
+     "by": 40.32
+    },
+    {
+     "ax": 100.0,
+     "ay": 43.44,
+     "bx": 124.0,
+     "by": 43.44
+    },
+    {
+     "ax": 100.0,
+     "ay": 46.56,
+     "bx": 124.0,
+     "by": 46.56
+    },
+    {
+     "ax": 100.0,
+     "ay": 49.68,
+     "bx": 124.0,
+     "by": 49.68
+    },
+    {
+     "ax": 100.0,
+     "ay": 52.8,
+     "bx": 124.0,
+     "by": 52.8
+    }
+   ]
+  },
+  {
+   "chamber": "PLANT_ROOM",
+   "count": 2,
+   "axis": "y",
+   "kind": "pipe",
+   "label": "Pipe bridge",
+   "segments": [
+    {
+     "ax": 29.759999999999998,
+     "ay": 36.0,
+     "bx": 29.759999999999998,
+     "by": 54.0
+    },
+    {
+     "ax": 36.24,
+     "ay": 36.0,
+     "bx": 36.24,
+     "by": 54.0
+    }
+   ]
+  },
+  {
+   "chamber": "BYPRODUCT",
+   "count": 2,
+   "axis": "x",
+   "kind": "belt",
+   "label": "Offal line",
+   "segments": [
+    {
+     "ax": 70.0,
+     "ay": 40.32,
+     "bx": 88.0,
+     "by": 40.32
+    },
+    {
+     "ax": 70.0,
+     "ay": 49.68,
+     "bx": 88.0,
+     "by": 49.68
+    }
+   ]
+  },
+  {
+   "chamber": "CUTTING_HALL",
+   "count": 4,
+   "axis": "y",
+   "kind": "belt",
+   "label": "Deboning line",
+   "segments": [
+    {
+     "ax": 100.28,
+     "ay": 66.0,
+     "bx": 100.28,
+     "by": 82.0
+    },
+    {
+     "ax": 106.76,
+     "ay": 66.0,
+     "bx": 106.76,
+     "by": 82.0
+    },
+    {
+     "ax": 113.24,
+     "ay": 66.0,
+     "bx": 113.24,
+     "by": 82.0
+    },
+    {
+     "ax": 119.72,
+     "ay": 66.0,
+     "bx": 119.72,
+     "by": 82.0
+    }
+   ]
+  },
+  {
+   "chamber": "PACKING",
+   "count": 3,
+   "axis": "y",
+   "kind": "belt",
+   "label": "Packing line",
+   "segments": [
+    {
+     "ax": 67.8,
+     "ay": 66.0,
+     "bx": 67.8,
+     "by": 82.0
+    },
+    {
+     "ax": 75.0,
+     "ay": 66.0,
+     "bx": 75.0,
+     "by": 82.0
+    },
+    {
+     "ax": 82.2,
+     "ay": 66.0,
+     "bx": 82.2,
+     "by": 82.0
+    }
+   ]
+  }
+ ],
+ "rail_route": [
+  {
+   "x": 34.0,
+   "y": 20.0
+  },
+  {
+   "x": 94.0,
+   "y": 20.0
+  },
+  {
+   "x": 94.0,
+   "y": 12.0
+  },
+  {
+   "x": 124.0,
+   "y": 12.0
+  },
+  {
+   "x": 124.0,
+   "y": 44.0
+  },
+  {
+   "x": 100.0,
+   "y": 44.0
+  },
+  {
+   "x": 100.0,
+   "y": 74.0
+  },
+  {
+   "x": 96.0,
+   "y": 74.0
+  }
+ ],
+ "transfers": [
+  {
+   "kind": "race",
+   "ax": 28.0,
+   "ay": 15.0,
+   "bx": 30.0,
+   "by": 15.0
+  },
+  {
+   "kind": "chute",
+   "ax": 80.0,
+   "ay": 26.0,
+   "bx": 80.0,
+   "by": 34.0
+  },
+  {
+   "kind": "screw",
+   "ax": 66.0,
+   "ay": 45.0,
+   "bx": 64.0,
+   "by": 45.0
+  },
+  {
+   "kind": "belt",
+   "ax": 92.0,
+   "ay": 74.0,
+   "bx": 90.0,
+   "by": 74.0
+  },
+  {
+   "kind": "roller",
+   "ax": 60.0,
+   "ay": 74.0,
+   "bx": 58.0,
+   "by": 74.0
+  },
+  {
+   "kind": "roller",
+   "ax": 28.0,
+   "ay": 74.0,
+   "bx": 26.0,
+   "by": 74.0
+  }
+ ],
+ "placements": [
+  {
+   "chamber": "KILL_FLOOR",
+   "asset": "CO2_STUNNER",
+   "count": 1
+  },
+  {
+   "chamber": "KILL_FLOOR",
+   "asset": "BLEED_RAIL",
+   "count": 2
+  },
+  {
+   "chamber": "KILL_FLOOR",
+   "asset": "SCALD_TANK",
+   "count": 2
+  },
+  {
+   "chamber": "KILL_FLOOR",
+   "asset": "DEHAIRER",
+   "count": 2
+  },
+  {
+   "chamber": "KILL_FLOOR",
+   "asset": "SINGE_CABINET",
+   "count": 2
+  },
+  {
+   "chamber": "KILL_FLOOR",
+   "asset": "POLISHER",
+   "count": 2
+  },
+  {
+   "chamber": "EVISCERATION",
+   "asset": "EVISCERATION_TABLE",
+   "count": 2
+  },
+  {
+   "chamber": "EVISCERATION",
+   "asset": "SPLITTING_SAW",
+   "count": 2
+  },
+  {
+   "chamber": "EVISCERATION",
+   "asset": "CARCASS_INSPECTION",
+   "count": 2
+  },
+  {
+   "chamber": "EVISCERATION",
+   "asset": "OFFAL_CHUTE",
+   "count": 2
+  },
+  {
+   "chamber": "BLAST_CHILL",
+   "asset": "BLAST_CHILLER",
+   "count": 4
+  },
+  {
+   "chamber": "BYPRODUCT",
+   "asset": "BYPRODUCT_TABLE",
+   "count": 4
+  },
+  {
+   "chamber": "BYPRODUCT",
+   "asset": "GRINDER",
+   "count": 2
+  },
+  {
+   "chamber": "RENDERING",
+   "asset": "RENDERING_HOPPER",
+   "count": 2
+  },
+  {
+   "chamber": "CUTTING_HALL",
+   "asset": "DEBONING_LINE",
+   "count": 4
+  },
+  {
+   "chamber": "CUTTING_HALL",
+   "asset": "DEBONE_STATION",
+   "count": 16
+  },
+  {
+   "chamber": "CUTTING_HALL",
+   "asset": "TRIM_BENCH",
+   "count": 8
+  },
+  {
+   "chamber": "PACKING",
+   "asset": "VACUUM_PACKER",
+   "count": 3
+  },
+  {
+   "chamber": "PACKING",
+   "asset": "METAL_DETECTOR",
+   "count": 3
+  },
+  {
+   "chamber": "PACKING",
+   "asset": "PALLETISER",
+   "count": 2
+  },
+  {
+   "chamber": "COLD_STORE",
+   "asset": "PALLET_RACK",
+   "count": 12
+  },
+  {
+   "chamber": "COLD_STORE",
+   "asset": "PALLET_LOAD",
+   "count": 18
+  },
+  {
+   "chamber": "HYGIENE",
+   "asset": "BOOT_WASH",
+   "count": 4
+  },
+  {
+   "chamber": "HYGIENE",
+   "asset": "LOCKER_BANK",
+   "count": 6
+  },
+  {
+   "chamber": "LAIRAGE",
+   "asset": "PEN_GATE",
+   "count": 6
+  },
+  {
+   "chamber": "LAIRAGE",
+   "asset": "WATER_TROUGH",
+   "count": 8
+  },
+  {
+   "chamber": "LAIRAGE",
+   "asset": "CROWD_RACE",
+   "count": 4
+  },
+  {
+   "chamber": "LAIRAGE",
+   "asset": "UNLOAD_RAMP",
+   "count": 2
+  },
+  {
+   "chamber": "PLANT_ROOM",
+   "asset": "COMPRESSOR_SKID",
+   "count": 4
+  },
+  {
+   "chamber": "PLANT_ROOM",
+   "asset": "CONDENSER",
+   "count": 2
+  },
+  {
+   "chamber": "PLANT_ROOM",
+   "asset": "ELECTRICAL_PANEL",
+   "count": 3
+  },
+  {
+   "chamber": "RENDERING",
+   "asset": "RENDER_TANK",
+   "count": 4
+  },
+  {
+   "chamber": "DISPATCH",
+   "asset": "DOCK_LEVELLER",
+   "count": 3
+  },
+  {
+   "chamber": "DISPATCH",
+   "asset": "TRAILER",
+   "count": 2
+  },
+  {
+   "chamber": "DISPATCH",
+   "asset": "PALLET_LOAD",
+   "count": 8
+  },
+  {
+   "chamber": "CARCASS_CHILL",
+   "asset": "CHILL_EVAPORATOR",
+   "count": 5
+  },
+  {
+   "chamber": "CARCASS_CHILL",
+   "asset": "CARCASS_INSPECTION",
+   "count": 2
+  },
+  {
+   "chamber": "BLAST_CHILL",
+   "asset": "CHILL_EVAPORATOR",
+   "count": 4
+  },
+  {
+   "chamber": "BLAST_CHILL",
+   "asset": "STRIP_CURTAIN",
+   "count": 4
+  },
+  {
+   "chamber": "RENDERING",
+   "asset": "SCREW_CONVEYOR",
+   "count": 2
+  },
+  {
+   "chamber": "BYPRODUCT",
+   "asset": "OFFAL_CHUTE",
+   "count": 2
+  }
+ ]
+}

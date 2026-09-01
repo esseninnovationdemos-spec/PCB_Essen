@@ -1,0 +1,468 @@
+<title>Kill Floor to Cold Store</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;500;600&family=Roboto+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap">
+
+<style>
+:root {
+  --paper: #EFF1F2;
+  --sheet: #FBFCFC;
+  --ink: #171A1D;
+  --ink-2: #4A5257;
+  --ink-3: #7C858B;
+  --rule: #C9D0D4;
+  --rule-strong: #9AA4AA;
+  --accent: #1F6F8B;
+
+  --dirty:   #B07A1E;
+  --clean:   #2F7D5E;
+  --chilled: #2E6E99;
+  --support: #6C757B;
+  --fill: 0.13;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E1214;
+    --sheet: #161B1E;
+    --ink: #E6EBEE;
+    --ink-2: #A2ADB4;
+    --ink-3: #6E7A81;
+    --rule: #293238;
+    --rule-strong: #3E4A51;
+    --accent: #55B2CE;
+
+    --dirty:   #D9A33F;
+    --clean:   #56B98D;
+    --chilled: #5AA3D6;
+    --support: #93A0A7;
+    --fill: 0.19;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0E1214;
+  --sheet: #161B1E;
+  --ink: #E6EBEE;
+  --ink-2: #A2ADB4;
+  --ink-3: #6E7A81;
+  --rule: #293238;
+  --rule-strong: #3E4A51;
+  --accent: #55B2CE;
+  --dirty:   #D9A33F;
+  --clean:   #56B98D;
+  --chilled: #5AA3D6;
+  --support: #93A0A7;
+  --fill: 0.19;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16.5px;
+  line-height: 1.6;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px 110px; }
+
+/* ---------- title block: a real drawing has one ---------- */
+
+.titleblock {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px 40px;
+  align-items: end;
+  border-bottom: 2px solid var(--ink);
+  padding: 52px 0 16px;
+  margin-bottom: 30px;
+}
+h1 {
+  font-family: "Oswald", ui-sans-serif, sans-serif;
+  font-weight: 600;
+  font-size: clamp(34px, 5.4vw, 58px);
+  line-height: 1.0;
+  letter-spacing: .004em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+  text-wrap: balance;
+}
+.standfirst { color: var(--ink-2); max-width: 60ch; margin: 0; font-size: 17.5px; }
+.stamp {
+  font-family: "Roboto Mono", ui-monospace, monospace;
+  font-size: 11.5px;
+  line-height: 1.9;
+  color: var(--ink-3);
+  text-align: right;
+  white-space: nowrap;
+}
+.stamp b { color: var(--ink); font-weight: 500; }
+
+/* ---------- sections ---------- */
+
+section { margin-bottom: 56px; }
+.sec-head {
+  display: flex; align-items: baseline; gap: 12px;
+  border-top: 1px solid var(--rule-strong);
+  padding-top: 12px; margin-bottom: 20px;
+}
+.sec-num {
+  font-family: "Roboto Mono", monospace; font-size: 11.5px; font-weight: 500;
+  letter-spacing: .1em; color: var(--accent); padding-top: 5px; flex: none;
+}
+h2 {
+  font-family: "Oswald", sans-serif; font-weight: 500;
+  font-size: clamp(21px, 3vw, 29px); text-transform: uppercase;
+  letter-spacing: .01em; margin: 0; line-height: 1.15;
+}
+h3 {
+  font-family: "Oswald", sans-serif; font-weight: 500; font-size: 17px;
+  text-transform: uppercase; letter-spacing: .03em; margin: 28px 0 8px;
+}
+p { max-width: 70ch; margin: 0 0 15px; }
+.lede { color: var(--ink-2); max-width: 70ch; }
+code {
+  font-family: "Roboto Mono", monospace; font-size: .85em;
+  background: var(--sheet); border: 1px solid var(--rule);
+  border-radius: 3px; padding: .06em .34em; white-space: nowrap;
+}
+ul { max-width: 70ch; padding-left: 20px; margin: 0 0 15px; }
+li { margin-bottom: 6px; }
+li::marker { color: var(--ink-3); }
+
+/* ---------- the drawing ---------- */
+
+.sheet {
+  background: var(--sheet);
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+  padding: 12px;
+  overflow-x: auto;
+  margin-bottom: 14px;
+}
+.plan { display: block; width: 100%; min-width: 900px; height: auto; }
+
+.shell { fill: none; stroke: var(--ink); stroke-width: 2.2; }
+.chamber { stroke-width: 1.4; }
+.zone-dirty   { fill: color-mix(in srgb, var(--dirty) calc(var(--fill) * 100%), transparent);   stroke: var(--dirty); }
+.zone-clean   { fill: color-mix(in srgb, var(--clean) calc(var(--fill) * 100%), transparent);   stroke: var(--clean); }
+.zone-chilled { fill: color-mix(in srgb, var(--chilled) calc(var(--fill) * 100%), transparent); stroke: var(--chilled); }
+.zone-support { fill: color-mix(in srgb, var(--support) calc(var(--fill) * 100%), transparent); stroke: var(--support); }
+
+.ch-name  { font-family: "Oswald", sans-serif; font-size: 13px; font-weight: 600;
+            fill: var(--ink); text-anchor: middle; letter-spacing: .04em; }
+.ch-label { font-family: "Source Sans 3", sans-serif; font-size: 10.5px;
+            fill: var(--ink-2); text-anchor: middle; }
+.ch-temp  { font-family: "Roboto Mono", monospace; font-size: 10px;
+            fill: var(--chilled); text-anchor: middle; font-weight: 500; }
+.ch-dim   { font-family: "Roboto Mono", monospace; font-size: 9px;
+            fill: var(--ink-3); text-anchor: end; }
+.ch-lines { font-family: "Roboto Mono", monospace; font-size: 9px; fill: var(--ink-3); }
+
+.line-rail { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 7 4; opacity: .85; }
+.line-belt { stroke: var(--ink-3); stroke-width: 2.6; opacity: .38; stroke-linecap: round; }
+
+.rail { fill: none; stroke: var(--accent); stroke-width: 2.6;
+        stroke-linejoin: round; stroke-linecap: round; }
+.transfer { stroke: var(--ink-2); stroke-width: 1.4; stroke-dasharray: 3 3; opacity: .8; }
+.t-label  { font-family: "Roboto Mono", monospace; font-size: 8.5px;
+            fill: var(--ink-3); text-anchor: middle; }
+.arrow    { fill: var(--accent); }
+.railtick { stroke: var(--ink-3); stroke-width: 1; }
+
+.scalebar { stroke: var(--ink); stroke-width: 1.6; }
+.scale-label { font-family: "Roboto Mono", monospace; font-size: 10px;
+               fill: var(--ink-2); text-anchor: middle; }
+.north { stroke: var(--accent); stroke-width: 1.8; }
+.north-label { font-family: "Oswald", sans-serif; font-size: 13px; font-weight: 600;
+               fill: var(--accent); text-anchor: middle; }
+
+.caption { font-size: 13px; color: var(--ink-3); max-width: 78ch; margin: 0; }
+
+/* ---------- legend ---------- */
+
+.legend {
+  display: flex; flex-wrap: wrap; gap: 10px 22px;
+  margin: 0 0 16px; padding: 0; list-style: none;
+}
+.legend li { display: flex; align-items: center; gap: 8px; margin: 0;
+             font-size: 13.5px; color: var(--ink-2); }
+.swatch { width: 22px; height: 12px; border-radius: 2px; flex: none; border-width: 1.4px;
+          border-style: solid; }
+.sw-dirty   { background: color-mix(in srgb, var(--dirty) 20%, transparent);   border-color: var(--dirty); }
+.sw-clean   { background: color-mix(in srgb, var(--clean) 20%, transparent);   border-color: var(--clean); }
+.sw-chilled { background: color-mix(in srgb, var(--chilled) 20%, transparent); border-color: var(--chilled); }
+.sw-support { background: color-mix(in srgb, var(--support) 20%, transparent); border-color: var(--support); }
+.sw-rail    { background: none; border: none; height: 3px; background-color: var(--accent); }
+
+/* ---------- tables ---------- */
+
+.tablescroll { overflow-x: auto; margin: 0 0 18px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px;
+        font-size: 14.5px; font-variant-numeric: tabular-nums; }
+th { font-family: "Roboto Mono", monospace; font-size: 10px; font-weight: 500;
+     letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3);
+     text-align: left; padding: 0 14px 8px 0;
+     border-bottom: 1px solid var(--rule-strong); vertical-align: bottom; }
+td { padding: 9px 14px 9px 0; border-bottom: 1px solid var(--rule);
+     vertical-align: top; color: var(--ink-2); }
+td:first-child { color: var(--ink); font-weight: 600; }
+td.num { text-align: right; padding-right: 22px; font-family: "Roboto Mono", monospace; }
+
+.tag { font-family: "Roboto Mono", monospace; font-size: 10px; letter-spacing: .06em;
+       text-transform: uppercase; padding: 2px 7px; border-radius: 2px;
+       border: 1px solid currentColor; white-space: nowrap; }
+.tag.have { color: var(--clean); }
+.tag.todo { color: var(--dirty); }
+
+.note {
+  background: var(--sheet); border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent); border-radius: 3px;
+  padding: 16px 20px; margin: 0 0 20px;
+}
+.note > :last-child { margin-bottom: 0; }
+.note-label { font-family: "Roboto Mono", monospace; font-size: 10.5px;
+              letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+              display: block; margin-bottom: 6px; }
+
+@media (max-width: 720px) {
+  .titleblock { grid-template-columns: 1fr; }
+  .stamp { text-align: left; }
+}
+</style>
+
+<div class="wrap">
+
+<header class="titleblock">
+  <div>
+    <h1>Kill Floor to Cold&nbsp;Store</h1>
+    <p class="standfirst">A thirteen-chamber pork plant laid out around the one rule that governs every slaughterhouse: product moves one way and never doubles back, and the dirty side never touches the clean side.</p>
+  </div>
+  <div class="stamp">
+    <div>DRAWING &nbsp; <b>BUTCHERY-PLANT-01</b></div>
+    <div>SCALE &nbsp; <b>1:250 @ 130 &#215; 88 m</b></div>
+    <div>AREA &nbsp; <b>11,440 m&#178;</b></div>
+    <div>CHAMBERS &nbsp; <b>13</b></div>
+    <div>LINES &nbsp; <b>23</b></div>
+    <div>DATE &nbsp; <b>29 AUG 2026</b></div>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><div class="sec-num">01</div><h2>The plan</h2></div>
+
+  <ul class="legend">
+    <li><span class="swatch sw-dirty"></span> Dirty side</li>
+    <li><span class="swatch sw-clean"></span> Clean side</li>
+    <li><span class="swatch sw-chilled"></span> Chilled</li>
+    <li><span class="swatch sw-support"></span> Support</li>
+    <li><span class="swatch sw-rail"></span> Overhead rail route</li>
+  </ul>
+
+  <div class="sheet">
+    <svg class="plan" viewBox="0 0 1360 986" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Top view plan of a multi-chamber pork processing plant">
+<defs><marker id="flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow"/></marker><marker id="railtick" viewBox="0 0 4 8" refX="2" refY="4" markerWidth="4" markerHeight="8" orient="auto"><path d="M2,0 L2,8" class="railtick"/></marker></defs>
+<rect class="shell" x="30.0" y="30.0" width="1300.0" height="880.0" rx="3"/>
+<rect class="chamber zone-dirty" x="50.0" y="630.0" width="260.0" height="260.0" rx="2"/>
+<text class="ch-name" x="180.0" y="650.0">LAIRAGE</text>
+<text class="ch-label" x="180.0" y="665.0">Lairage &amp; race</text>
+<text class="ch-dim" x="304.0" y="883.0">26 &#215; 26 m</text>
+<rect class="chamber zone-dirty" x="330.0" y="630.0" width="340.0" height="260.0" rx="2"/>
+<text class="ch-name" x="500.0" y="650.0">KILL FLOOR</text>
+<text class="ch-label" x="500.0" y="665.0">Stun · bleed · scald · dehair · singe</text>
+<text class="ch-dim" x="664.0" y="883.0">34 &#215; 26 m</text>
+<rect class="chamber zone-clean" x="690.0" y="630.0" width="300.0" height="260.0" rx="2"/>
+<text class="ch-name" x="840.0" y="650.0">EVISCERATION</text>
+<text class="ch-label" x="840.0" y="665.0">Eviscerate · split · inspect</text>
+<text class="ch-temp" x="840.0" y="680.0">+12 &#176;C</text>
+<text class="ch-dim" x="984.0" y="883.0">30 &#215; 26 m</text>
+<rect class="chamber zone-chilled" x="1010.0" y="630.0" width="300.0" height="260.0" rx="2"/>
+<text class="ch-name" x="1160.0" y="650.0">BLAST CHILL</text>
+<text class="ch-label" x="1160.0" y="665.0">Blast chill tunnels</text>
+<text class="ch-temp" x="1160.0" y="680.0">-8 &#176;C</text>
+<text class="ch-dim" x="1304.0" y="883.0">30 &#215; 26 m</text>
+<rect class="chamber zone-support" x="50.0" y="330.0" width="200.0" height="260.0" rx="2"/>
+<text class="ch-name" x="150.0" y="350.0">HYGIENE</text>
+<text class="ch-label" x="150.0" y="365.0">Welfare · boot wash · laundry</text>
+<text class="ch-dim" x="244.0" y="583.0">20 &#215; 26 m</text>
+<rect class="chamber zone-support" x="270.0" y="330.0" width="180.0" height="260.0" rx="2"/>
+<text class="ch-name" x="360.0" y="350.0">PLANT ROOM</text>
+<text class="ch-label" x="360.0" y="365.0">Refrigeration · compressors</text>
+<text class="ch-dim" x="444.0" y="583.0">18 &#215; 26 m</text>
+<rect class="chamber zone-dirty" x="470.0" y="330.0" width="200.0" height="260.0" rx="2"/>
+<text class="ch-name" x="570.0" y="350.0">RENDERING</text>
+<text class="ch-label" x="570.0" y="365.0">Inedible rendering</text>
+<text class="ch-dim" x="664.0" y="583.0">20 &#215; 26 m</text>
+<rect class="chamber zone-clean" x="690.0" y="330.0" width="260.0" height="260.0" rx="2"/>
+<text class="ch-name" x="820.0" y="350.0">BYPRODUCT</text>
+<text class="ch-label" x="820.0" y="365.0">Red &amp; green offal</text>
+<text class="ch-temp" x="820.0" y="380.0">+10 &#176;C</text>
+<text class="ch-dim" x="944.0" y="583.0">26 &#215; 26 m</text>
+<rect class="chamber zone-chilled" x="990.0" y="330.0" width="320.0" height="260.0" rx="2"/>
+<text class="ch-name" x="1150.0" y="350.0">CARCASS CHILL</text>
+<text class="ch-label" x="1150.0" y="365.0">Equalisation chill</text>
+<text class="ch-temp" x="1150.0" y="380.0">+2 &#176;C</text>
+<text class="ch-dim" x="1304.0" y="583.0">32 &#215; 26 m</text>
+<rect class="chamber zone-chilled" x="50.0" y="50.0" width="240.0" height="240.0" rx="2"/>
+<text class="ch-name" x="170.0" y="70.0">DISPATCH</text>
+<text class="ch-label" x="170.0" y="85.0">Dock &amp; load-out</text>
+<text class="ch-temp" x="170.0" y="100.0">+4 &#176;C</text>
+<text class="ch-dim" x="284.0" y="283.0">24 &#215; 24 m</text>
+<rect class="chamber zone-chilled" x="310.0" y="50.0" width="300.0" height="240.0" rx="2"/>
+<text class="ch-name" x="460.0" y="70.0">COLD STORE</text>
+<text class="ch-label" x="460.0" y="85.0">Palletised cold store</text>
+<text class="ch-temp" x="460.0" y="100.0">-2 &#176;C</text>
+<text class="ch-dim" x="604.0" y="283.0">30 &#215; 24 m</text>
+<rect class="chamber zone-chilled" x="630.0" y="50.0" width="300.0" height="240.0" rx="2"/>
+<text class="ch-name" x="780.0" y="70.0">PACKING</text>
+<text class="ch-label" x="780.0" y="85.0">Vacuum · detect · carton</text>
+<text class="ch-temp" x="780.0" y="100.0">+6 &#176;C</text>
+<text class="ch-dim" x="924.0" y="283.0">30 &#215; 24 m</text>
+<rect class="chamber zone-chilled" x="950.0" y="50.0" width="360.0" height="240.0" rx="2"/>
+<text class="ch-name" x="1130.0" y="70.0">CUTTING HALL</text>
+<text class="ch-label" x="1130.0" y="85.0">Deboning &amp; trimming</text>
+<text class="ch-temp" x="1130.0" y="100.0">+10 &#176;C</text>
+<text class="ch-dim" x="1304.0" y="283.0">36 &#215; 24 m</text>
+<line class="line-rail" x1="330.0" y1="806.8" x2="670.0" y2="806.8"/>
+<line class="line-rail" x1="330.0" y1="713.2" x2="670.0" y2="713.2"/>
+<text class="ch-lines" x="337.0" y="882.0">2 &#215; Kill line</text>
+<line class="line-rail" x1="690.0" y1="806.8" x2="990.0" y2="806.8"/>
+<line class="line-rail" x1="690.0" y1="713.2" x2="990.0" y2="713.2"/>
+<text class="ch-lines" x="697.0" y="882.0">2 &#215; Dressing line</text>
+<line class="line-rail" x1="1010.0" y1="830.2" x2="1310.0" y2="830.2"/>
+<line class="line-rail" x1="1010.0" y1="783.4" x2="1310.0" y2="783.4"/>
+<line class="line-rail" x1="1010.0" y1="736.6" x2="1310.0" y2="736.6"/>
+<line class="line-rail" x1="1010.0" y1="689.8" x2="1310.0" y2="689.8"/>
+<text class="ch-lines" x="1017.0" y="882.0">4 &#215; Chill tunnel</text>
+<line class="line-rail" x1="990.0" y1="538.0" x2="1310.0" y2="538.0"/>
+<line class="line-rail" x1="990.0" y1="506.8" x2="1310.0" y2="506.8"/>
+<line class="line-rail" x1="990.0" y1="475.6" x2="1310.0" y2="475.6"/>
+<line class="line-rail" x1="990.0" y1="444.4" x2="1310.0" y2="444.4"/>
+<line class="line-rail" x1="990.0" y1="413.2" x2="1310.0" y2="413.2"/>
+<line class="line-rail" x1="990.0" y1="382.0" x2="1310.0" y2="382.0"/>
+<text class="ch-lines" x="997.0" y="582.0">6 &#215; Chill rail</text>
+<line class="line-belt" x1="690.0" y1="506.8" x2="950.0" y2="506.8"/>
+<line class="line-belt" x1="690.0" y1="413.2" x2="950.0" y2="413.2"/>
+<text class="ch-lines" x="697.0" y="582.0">2 &#215; Offal line</text>
+<line class="line-belt" x1="1032.8" y1="290.0" x2="1032.8" y2="50.0"/>
+<line class="line-belt" x1="1097.6" y1="290.0" x2="1097.6" y2="50.0"/>
+<line class="line-belt" x1="1162.4" y1="290.0" x2="1162.4" y2="50.0"/>
+<line class="line-belt" x1="1227.2" y1="290.0" x2="1227.2" y2="50.0"/>
+<text class="ch-lines" x="957.0" y="282.0">4 &#215; Deboning line</text>
+<line class="line-belt" x1="708.0" y1="290.0" x2="708.0" y2="50.0"/>
+<line class="line-belt" x1="780.0" y1="290.0" x2="780.0" y2="50.0"/>
+<line class="line-belt" x1="852.0" y1="290.0" x2="852.0" y2="50.0"/>
+<text class="ch-lines" x="637.0" y="282.0">3 &#215; Packing line</text>
+<polyline class="rail" points="370.0,710.0 970.0,710.0 970.0,790.0 1270.0,790.0 1270.0,470.0 1030.0,470.0 1030.0,170.0 990.0,170.0" marker-end="url(#flow)"/>
+<line class="transfer t-race" x1="310.0" y1="760.0" x2="330.0" y2="760.0" marker-end="url(#flow)"/>
+<text class="t-label" x="320.0" y="754.0">race</text>
+<line class="transfer t-chute" x1="830.0" y1="650.0" x2="830.0" y2="570.0" marker-end="url(#flow)"/>
+<text class="t-label" x="830.0" y="604.0">chute</text>
+<line class="transfer t-screw" x1="690.0" y1="460.0" x2="670.0" y2="460.0" marker-end="url(#flow)"/>
+<text class="t-label" x="680.0" y="454.0">screw</text>
+<line class="transfer t-belt" x1="950.0" y1="170.0" x2="930.0" y2="170.0" marker-end="url(#flow)"/>
+<text class="t-label" x="940.0" y="164.0">belt</text>
+<line class="transfer t-roller" x1="630.0" y1="170.0" x2="610.0" y2="170.0" marker-end="url(#flow)"/>
+<text class="t-label" x="620.0" y="164.0">roller</text>
+<line class="transfer t-roller" x1="310.0" y1="170.0" x2="290.0" y2="170.0" marker-end="url(#flow)"/>
+<text class="t-label" x="300.0" y="164.0">roller</text>
+<line class="scalebar" x1="50.0" y1="944.0" x2="250.0" y2="944.0"/>
+<line class="scalebar" x1="50.0" y1="939.0" x2="50.0" y2="949.0"/>
+<line class="scalebar" x1="250.0" y1="939.0" x2="250.0" y2="949.0"/>
+<text class="scale-label" x="150.0" y="962.0">20 m</text>
+<line class="north" x1="1270.0" y1="962.0" x2="1270.0" y2="932.0" marker-end="url(#flow)"/>
+<text class="north-label" x="1270.0" y="976.0">N</text>
+</svg>
+  </div>
+  <p class="caption">Dashed lines inside chambers are rail lines; solid grey are belt lines. The blue polyline is the continuous overhead rail, from the bleed rail to the cutting-hall drop-off. Drawn from <code>plant_layout.py</code>, which is also what the Unreal build places from &mdash; so a chamber cannot be one size here and another in the level.</p>
+</section>
+
+<section>
+  <div class="sec-head"><div class="sec-num">02</div><h2>Why it is shaped like this</h2></div>
+
+  <p class="lede">Three constraints do almost all the work. Everything else is consequence.</p>
+
+  <h3>Product never doubles back</h3>
+  <p>The flow is a flattened S: east along the kill floor, down into chilling, then west through cutting, packing and cold store to the dock. Nothing chilled passes back through anything warm, which is why dispatch is at the far end rather than next to the yard where the lorries already are.</p>
+
+  <h3>The clean/dirty line falls at evisceration</h3>
+  <p>Everything up to and including singeing is dirty &mdash; live animals, hair, scald water. The carcass becomes clean the moment it is opened, which is exactly why <strong>inspection sits at evisceration</strong> and why the byproduct room hangs directly off it rather than off the cutting hall. Offal drops through a chute one floor level, and never crosses a clean corridor to get there.</p>
+
+  <h3>Rendering touches nothing edible</h3>
+  <p>Inedible material goes from byproduct to rendering by enclosed screw. Rendering has its own external door and shares no opening with a clean chamber. It sits on the dirty side of the building even though the material reaching it came from the clean side, because once condemned it is dirty again.</p>
+
+  <div class="note">
+    <span class="note-label">What the plan is not</span>
+    <p>A layout for building. It is dimensionally coherent and follows real hygiene zoning, but it has no drainage falls, no door schedule, no air-pressure cascade between chambers, and no escape routes. It is a plan to <em>populate a level from</em>, and the numbers are consistent enough that the level will not need re-laying when the last models arrive.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><div class="sec-num">03</div><h2>Chamber schedule</h2></div>
+  <div class="tablescroll">
+  <table>
+    <thead><tr><th>Chamber</th><th>Size</th><th>Zone</th><th>Temp</th><th>Lines</th><th>Holds</th></tr></thead>
+    <tbody>
+      <tr><td>Lairage</td><td>26 &#215; 26 m</td><td>Dirty</td><td>&mdash;</td><td>&mdash;</td><td>Pens, crowd race</td></tr>
+      <tr><td>Kill floor</td><td>34 &#215; 26 m</td><td>Dirty</td><td>&mdash;</td><td>2 rail</td><td>Stunner, bleed rail, scald, dehairer, singe, polisher</td></tr>
+      <tr><td>Evisceration</td><td>30 &#215; 26 m</td><td>Clean</td><td>+12 &#176;C</td><td>2 rail</td><td>Viscera carousel, splitting saw, inspection, offal chutes</td></tr>
+      <tr><td>Blast chill</td><td>30 &#215; 26 m</td><td>Chilled</td><td>&minus;8 &#176;C</td><td>4 rail</td><td>Four chill tunnels</td></tr>
+      <tr><td>Carcass chill</td><td>32 &#215; 26 m</td><td>Chilled</td><td>+2 &#176;C</td><td>6 rail</td><td>Equalisation rail storage</td></tr>
+      <tr><td>Cutting hall</td><td>36 &#215; 24 m</td><td>Chilled</td><td>+10 &#176;C</td><td>4 belt</td><td>4 deboning lines, 16 debone stations, 8 trim benches</td></tr>
+      <tr><td>Byproduct</td><td>26 &#215; 26 m</td><td>Clean</td><td>+10 &#176;C</td><td>2 belt</td><td>Red and green offal tables, grinders</td></tr>
+      <tr><td>Rendering</td><td>20 &#215; 26 m</td><td>Dirty</td><td>&mdash;</td><td>&mdash;</td><td>Inedible hoppers</td></tr>
+      <tr><td>Packing</td><td>30 &#215; 24 m</td><td>Chilled</td><td>+6 &#176;C</td><td>3 belt</td><td>Vacuum packers, metal detection, palletisers</td></tr>
+      <tr><td>Cold store</td><td>30 &#215; 24 m</td><td>Chilled</td><td>&minus;2 &#176;C</td><td>&mdash;</td><td>Pallet racking</td></tr>
+      <tr><td>Dispatch</td><td>24 &#215; 24 m</td><td>Chilled</td><td>+4 &#176;C</td><td>&mdash;</td><td>Dock, load-out</td></tr>
+      <tr><td>Plant room</td><td>18 &#215; 26 m</td><td>Support</td><td>&mdash;</td><td>&mdash;</td><td>Refrigeration, compressors</td></tr>
+      <tr><td>Hygiene</td><td>20 &#215; 26 m</td><td>Support</td><td>&mdash;</td><td>&mdash;</td><td>Boot wash, welfare, laundry</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><div class="sec-num">04</div><h2>Model shopping list</h2></div>
+  <p class="lede">What the plan calls for, and what exists. Counts are instances, not distinct meshes &mdash; one <code>DEBONE_STATION</code> mesh placed sixteen times.</p>
+  <div class="tablescroll"><table>
+<thead><tr><th>Asset</th><th>Status</th><th class="num">Placed</th><th>Note</th></tr></thead><tbody>
+<tr><td><code>ACCUMULATION_TABLE</code></td><td><span class="tag have">built</span></td><td class="num">&mdash;</td><td>rotary accumulation table between lines</td></tr>
+<tr><td><code>BELT_CONVEYOR</code></td><td><span class="tag have">built</span></td><td class="num">&mdash;</td><td>6 m straight belt, tileable</td></tr>
+<tr><td><code>BLAST_CHILLER</code></td><td><span class="tag have">built</span></td><td class="num">4</td><td>&mdash;</td></tr>
+<tr><td><code>BLEED_RAIL</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>&mdash;</td></tr>
+<tr><td><code>BOOT_WASH</code></td><td><span class="tag have">built</span></td><td class="num">4</td><td>hygiene entry: boot wash and hand basin</td></tr>
+<tr><td><code>BYPRODUCT_TABLE</code></td><td><span class="tag have">built</span></td><td class="num">4</td><td>offal separation table with red and green sides</td></tr>
+<tr><td><code>CARCASS_INSPECTION</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>&mdash;</td></tr>
+<tr><td><code>CHAMBER_DOOR</code></td><td><span class="tag have">built</span></td><td class="num">&mdash;</td><td>sliding cold-room door</td></tr>
+<tr><td><code>CO2_STUNNER</code></td><td><span class="tag have">built</span></td><td class="num">1</td><td>&mdash;</td></tr>
+<tr><td><code>DEBONE_STATION</code></td><td><span class="tag have">built</span></td><td class="num">16</td><td>one deboning workstation: bench, chute, bin, sterilizer</td></tr>
+<tr><td><code>DEBONING_LINE</code></td><td><span class="tag have">built</span></td><td class="num">4</td><td>&mdash;</td></tr>
+<tr><td><code>DEHAIRER</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>&mdash;</td></tr>
+<tr><td><code>EVISCERATION_TABLE</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>&mdash;</td></tr>
+<tr><td><code>GRINDER</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>&mdash;</td></tr>
+<tr><td><code>METAL_DETECTOR</code></td><td><span class="tag have">built</span></td><td class="num">3</td><td>&mdash;</td></tr>
+<tr><td><code>OFFAL_CHUTE</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>drop chute from the dressing floor to byproduct</td></tr>
+<tr><td><code>PALLETISER</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>&mdash;</td></tr>
+<tr><td><code>PALLET_RACK</code></td><td><span class="tag have">built</span></td><td class="num">12</td><td>3-bay pallet racking for the cold store</td></tr>
+<tr><td><code>POLISHER</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>&mdash;</td></tr>
+<tr><td><code>RAIL_CARCASS_RUN</code></td><td><span class="tag have">built</span></td><td class="num">&mdash;</td><td>the same run carrying four hanging carcasses</td></tr>
+<tr><td><code>RAIL_CURVE</code></td><td><span class="tag have">built</span></td><td class="num">&mdash;</td><td>90 degree rail bend, for the corners of the route</td></tr>
+<tr><td><code>RAIL_RUN</code></td><td><span class="tag have">built</span></td><td class="num">&mdash;</td><td>6 m of powered overhead rail with trolleys, tileable</td></tr>
+<tr><td><code>RAIL_SWITCH</code></td><td><span class="tag have">built</span></td><td class="num">&mdash;</td><td>rail points, where the line splits between chambers</td></tr>
+<tr><td><code>RENDERING_HOPPER</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>inedible collection hopper with a screw take-off</td></tr>
+<tr><td><code>ROLLER_CONVEYOR</code></td><td><span class="tag have">built</span></td><td class="num">&mdash;</td><td>3 m gravity roller for cartons and crates</td></tr>
+<tr><td><code>SCALD_TANK</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>&mdash;</td></tr>
+<tr><td><code>SCREW_CONVEYOR</code></td><td><span class="tag have">built</span></td><td class="num">&mdash;</td><td>trim and byproduct auger</td></tr>
+<tr><td><code>SINGE_CABINET</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>&mdash;</td></tr>
+<tr><td><code>SPLITTING_SAW</code></td><td><span class="tag have">built</span></td><td class="num">2</td><td>&mdash;</td></tr>
+<tr><td><code>STRIP_CURTAIN</code></td><td><span class="tag have">built</span></td><td class="num">&mdash;</td><td>PVC strip curtain for a chamber opening</td></tr>
+<tr><td><code>TRIM_BENCH</code></td><td><span class="tag have">built</span></td><td class="num">8</td><td>&mdash;</td></tr>
+<tr><td><code>VACUUM_PACKER</code></td><td><span class="tag have">built</span></td><td class="num">3</td><td>&mdash;</td></tr>
+<tr><td><code>WALL_PANEL</code></td><td><span class="tag have">built</span></td><td class="num">&mdash;</td><td>3 m hygienic sandwich panel, tileable</td></tr>
+</tbody></table></div>
+<p class="caption">33 of 33 asset types exist. The 0 outstanding are the conveyors, the rail modules and the chamber shell &mdash; everything the plan needs to become a building rather than a set of machines.</p>
+</section>
+
+</div>

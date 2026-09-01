@@ -1,0 +1,320 @@
+<title>Kill Floor to Cold Store</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;500;600&family=Roboto+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap">
+
+<style>
+:root {
+  --paper: #EFF1F2;
+  --sheet: #FBFCFC;
+  --ink: #171A1D;
+  --ink-2: #4A5257;
+  --ink-3: #7C858B;
+  --rule: #C9D0D4;
+  --rule-strong: #9AA4AA;
+  --accent: #1F6F8B;
+
+  --dirty:   #B07A1E;
+  --clean:   #2F7D5E;
+  --chilled: #2E6E99;
+  --support: #6C757B;
+  --fill: 0.13;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E1214;
+    --sheet: #161B1E;
+    --ink: #E6EBEE;
+    --ink-2: #A2ADB4;
+    --ink-3: #6E7A81;
+    --rule: #293238;
+    --rule-strong: #3E4A51;
+    --accent: #55B2CE;
+
+    --dirty:   #D9A33F;
+    --clean:   #56B98D;
+    --chilled: #5AA3D6;
+    --support: #93A0A7;
+    --fill: 0.19;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0E1214;
+  --sheet: #161B1E;
+  --ink: #E6EBEE;
+  --ink-2: #A2ADB4;
+  --ink-3: #6E7A81;
+  --rule: #293238;
+  --rule-strong: #3E4A51;
+  --accent: #55B2CE;
+  --dirty:   #D9A33F;
+  --clean:   #56B98D;
+  --chilled: #5AA3D6;
+  --support: #93A0A7;
+  --fill: 0.19;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16.5px;
+  line-height: 1.6;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px 110px; }
+
+/* ---------- title block: a real drawing has one ---------- */
+
+.titleblock {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px 40px;
+  align-items: end;
+  border-bottom: 2px solid var(--ink);
+  padding: 52px 0 16px;
+  margin-bottom: 30px;
+}
+h1 {
+  font-family: "Oswald", ui-sans-serif, sans-serif;
+  font-weight: 600;
+  font-size: clamp(34px, 5.4vw, 58px);
+  line-height: 1.0;
+  letter-spacing: .004em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+  text-wrap: balance;
+}
+.standfirst { color: var(--ink-2); max-width: 60ch; margin: 0; font-size: 17.5px; }
+.stamp {
+  font-family: "Roboto Mono", ui-monospace, monospace;
+  font-size: 11.5px;
+  line-height: 1.9;
+  color: var(--ink-3);
+  text-align: right;
+  white-space: nowrap;
+}
+.stamp b { color: var(--ink); font-weight: 500; }
+
+/* ---------- sections ---------- */
+
+section { margin-bottom: 56px; }
+.sec-head {
+  display: flex; align-items: baseline; gap: 12px;
+  border-top: 1px solid var(--rule-strong);
+  padding-top: 12px; margin-bottom: 20px;
+}
+.sec-num {
+  font-family: "Roboto Mono", monospace; font-size: 11.5px; font-weight: 500;
+  letter-spacing: .1em; color: var(--accent); padding-top: 5px; flex: none;
+}
+h2 {
+  font-family: "Oswald", sans-serif; font-weight: 500;
+  font-size: clamp(21px, 3vw, 29px); text-transform: uppercase;
+  letter-spacing: .01em; margin: 0; line-height: 1.15;
+}
+h3 {
+  font-family: "Oswald", sans-serif; font-weight: 500; font-size: 17px;
+  text-transform: uppercase; letter-spacing: .03em; margin: 28px 0 8px;
+}
+p { max-width: 70ch; margin: 0 0 15px; }
+.lede { color: var(--ink-2); max-width: 70ch; }
+code {
+  font-family: "Roboto Mono", monospace; font-size: .85em;
+  background: var(--sheet); border: 1px solid var(--rule);
+  border-radius: 3px; padding: .06em .34em; white-space: nowrap;
+}
+ul { max-width: 70ch; padding-left: 20px; margin: 0 0 15px; }
+li { margin-bottom: 6px; }
+li::marker { color: var(--ink-3); }
+
+/* ---------- the drawing ---------- */
+
+.sheet {
+  background: var(--sheet);
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+  padding: 12px;
+  overflow-x: auto;
+  margin-bottom: 14px;
+}
+.plan { display: block; width: 100%; min-width: 900px; height: auto; }
+
+.shell { fill: none; stroke: var(--ink); stroke-width: 2.2; }
+.chamber { stroke-width: 1.4; }
+.zone-dirty   { fill: color-mix(in srgb, var(--dirty) calc(var(--fill) * 100%), transparent);   stroke: var(--dirty); }
+.zone-clean   { fill: color-mix(in srgb, var(--clean) calc(var(--fill) * 100%), transparent);   stroke: var(--clean); }
+.zone-chilled { fill: color-mix(in srgb, var(--chilled) calc(var(--fill) * 100%), transparent); stroke: var(--chilled); }
+.zone-support { fill: color-mix(in srgb, var(--support) calc(var(--fill) * 100%), transparent); stroke: var(--support); }
+
+.ch-name  { font-family: "Oswald", sans-serif; font-size: 13px; font-weight: 600;
+            fill: var(--ink); text-anchor: middle; letter-spacing: .04em; }
+.ch-label { font-family: "Source Sans 3", sans-serif; font-size: 10.5px;
+            fill: var(--ink-2); text-anchor: middle; }
+.ch-temp  { font-family: "Roboto Mono", monospace; font-size: 10px;
+            fill: var(--chilled); text-anchor: middle; font-weight: 500; }
+.ch-dim   { font-family: "Roboto Mono", monospace; font-size: 9px;
+            fill: var(--ink-3); text-anchor: end; }
+.ch-lines { font-family: "Roboto Mono", monospace; font-size: 9px; fill: var(--ink-3); }
+
+.line-rail { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 7 4; opacity: .85; }
+.line-belt { stroke: var(--ink-3); stroke-width: 2.6; opacity: .38; stroke-linecap: round; }
+
+.rail { fill: none; stroke: var(--accent); stroke-width: 2.6;
+        stroke-linejoin: round; stroke-linecap: round; }
+.transfer { stroke: var(--ink-2); stroke-width: 1.4; stroke-dasharray: 3 3; opacity: .8; }
+.t-label  { font-family: "Roboto Mono", monospace; font-size: 8.5px;
+            fill: var(--ink-3); text-anchor: middle; }
+.arrow    { fill: var(--accent); }
+.railtick { stroke: var(--ink-3); stroke-width: 1; }
+
+.scalebar { stroke: var(--ink); stroke-width: 1.6; }
+.scale-label { font-family: "Roboto Mono", monospace; font-size: 10px;
+               fill: var(--ink-2); text-anchor: middle; }
+.north { stroke: var(--accent); stroke-width: 1.8; }
+.north-label { font-family: "Oswald", sans-serif; font-size: 13px; font-weight: 600;
+               fill: var(--accent); text-anchor: middle; }
+
+.caption { font-size: 13px; color: var(--ink-3); max-width: 78ch; margin: 0; }
+
+/* ---------- legend ---------- */
+
+.legend {
+  display: flex; flex-wrap: wrap; gap: 10px 22px;
+  margin: 0 0 16px; padding: 0; list-style: none;
+}
+.legend li { display: flex; align-items: center; gap: 8px; margin: 0;
+             font-size: 13.5px; color: var(--ink-2); }
+.swatch { width: 22px; height: 12px; border-radius: 2px; flex: none; border-width: 1.4px;
+          border-style: solid; }
+.sw-dirty   { background: color-mix(in srgb, var(--dirty) 20%, transparent);   border-color: var(--dirty); }
+.sw-clean   { background: color-mix(in srgb, var(--clean) 20%, transparent);   border-color: var(--clean); }
+.sw-chilled { background: color-mix(in srgb, var(--chilled) 20%, transparent); border-color: var(--chilled); }
+.sw-support { background: color-mix(in srgb, var(--support) 20%, transparent); border-color: var(--support); }
+.sw-rail    { background: none; border: none; height: 3px; background-color: var(--accent); }
+
+/* ---------- tables ---------- */
+
+.tablescroll { overflow-x: auto; margin: 0 0 18px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px;
+        font-size: 14.5px; font-variant-numeric: tabular-nums; }
+th { font-family: "Roboto Mono", monospace; font-size: 10px; font-weight: 500;
+     letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3);
+     text-align: left; padding: 0 14px 8px 0;
+     border-bottom: 1px solid var(--rule-strong); vertical-align: bottom; }
+td { padding: 9px 14px 9px 0; border-bottom: 1px solid var(--rule);
+     vertical-align: top; color: var(--ink-2); }
+td:first-child { color: var(--ink); font-weight: 600; }
+td.num { text-align: right; padding-right: 22px; font-family: "Roboto Mono", monospace; }
+
+.tag { font-family: "Roboto Mono", monospace; font-size: 10px; letter-spacing: .06em;
+       text-transform: uppercase; padding: 2px 7px; border-radius: 2px;
+       border: 1px solid currentColor; white-space: nowrap; }
+.tag.have { color: var(--clean); }
+.tag.todo { color: var(--dirty); }
+
+.note {
+  background: var(--sheet); border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent); border-radius: 3px;
+  padding: 16px 20px; margin: 0 0 20px;
+}
+.note > :last-child { margin-bottom: 0; }
+.note-label { font-family: "Roboto Mono", monospace; font-size: 10.5px;
+              letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+              display: block; margin-bottom: 6px; }
+
+@media (max-width: 720px) {
+  .titleblock { grid-template-columns: 1fr; }
+  .stamp { text-align: left; }
+}
+</style>
+
+<div class="wrap">
+
+<header class="titleblock">
+  <div>
+    <h1>Kill Floor to Cold&nbsp;Store</h1>
+    <p class="standfirst">A thirteen-chamber pork plant laid out around the one rule that governs every slaughterhouse: product moves one way and never doubles back, and the dirty side never touches the clean side.</p>
+  </div>
+  <div class="stamp">
+    <div>DRAWING &nbsp; <b>BUTCHERY-PLANT-01</b></div>
+    <div>SCALE &nbsp; <b>1:250 @ 130 &#215; 88 m</b></div>
+    <div>AREA &nbsp; <b>11,440 m&#178;</b></div>
+    <div>CHAMBERS &nbsp; <b>13</b></div>
+    <div>LINES &nbsp; <b>23</b></div>
+    <div>DATE &nbsp; <b>29 AUG 2026</b></div>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><div class="sec-num">01</div><h2>The plan</h2></div>
+
+  <ul class="legend">
+    <li><span class="swatch sw-dirty"></span> Dirty side</li>
+    <li><span class="swatch sw-clean"></span> Clean side</li>
+    <li><span class="swatch sw-chilled"></span> Chilled</li>
+    <li><span class="swatch sw-support"></span> Support</li>
+    <li><span class="swatch sw-rail"></span> Overhead rail route</li>
+  </ul>
+
+  <div class="sheet">
+    <!--PLAN-->
+  </div>
+  <p class="caption">Dashed lines inside chambers are rail lines; solid grey are belt lines. The blue polyline is the continuous overhead rail, from the bleed rail to the cutting-hall drop-off. Drawn from <code>plant_layout.py</code>, which is also what the Unreal build places from &mdash; so a chamber cannot be one size here and another in the level.</p>
+</section>
+
+<section>
+  <div class="sec-head"><div class="sec-num">02</div><h2>Why it is shaped like this</h2></div>
+
+  <p class="lede">Three constraints do almost all the work. Everything else is consequence.</p>
+
+  <h3>Product never doubles back</h3>
+  <p>The flow is a flattened S: east along the kill floor, down into chilling, then west through cutting, packing and cold store to the dock. Nothing chilled passes back through anything warm, which is why dispatch is at the far end rather than next to the yard where the lorries already are.</p>
+
+  <h3>The clean/dirty line falls at evisceration</h3>
+  <p>Everything up to and including singeing is dirty &mdash; live animals, hair, scald water. The carcass becomes clean the moment it is opened, which is exactly why <strong>inspection sits at evisceration</strong> and why the byproduct room hangs directly off it rather than off the cutting hall. Offal drops through a chute one floor level, and never crosses a clean corridor to get there.</p>
+
+  <h3>Rendering touches nothing edible</h3>
+  <p>Inedible material goes from byproduct to rendering by enclosed screw. Rendering has its own external door and shares no opening with a clean chamber. It sits on the dirty side of the building even though the material reaching it came from the clean side, because once condemned it is dirty again.</p>
+
+  <div class="note">
+    <span class="note-label">What the plan is not</span>
+    <p>A layout for building. It is dimensionally coherent and follows real hygiene zoning, but it has no drainage falls, no door schedule, no air-pressure cascade between chambers, and no escape routes. It is a plan to <em>populate a level from</em>, and the numbers are consistent enough that the level will not need re-laying when the last models arrive.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><div class="sec-num">03</div><h2>Chamber schedule</h2></div>
+  <div class="tablescroll">
+  <table>
+    <thead><tr><th>Chamber</th><th>Size</th><th>Zone</th><th>Temp</th><th>Lines</th><th>Holds</th></tr></thead>
+    <tbody>
+      <tr><td>Lairage</td><td>26 &#215; 26 m</td><td>Dirty</td><td>&mdash;</td><td>&mdash;</td><td>Pens, crowd race</td></tr>
+      <tr><td>Kill floor</td><td>34 &#215; 26 m</td><td>Dirty</td><td>&mdash;</td><td>2 rail</td><td>Stunner, bleed rail, scald, dehairer, singe, polisher</td></tr>
+      <tr><td>Evisceration</td><td>30 &#215; 26 m</td><td>Clean</td><td>+12 &#176;C</td><td>2 rail</td><td>Viscera carousel, splitting saw, inspection, offal chutes</td></tr>
+      <tr><td>Blast chill</td><td>30 &#215; 26 m</td><td>Chilled</td><td>&minus;8 &#176;C</td><td>4 rail</td><td>Four chill tunnels</td></tr>
+      <tr><td>Carcass chill</td><td>32 &#215; 26 m</td><td>Chilled</td><td>+2 &#176;C</td><td>6 rail</td><td>Equalisation rail storage</td></tr>
+      <tr><td>Cutting hall</td><td>36 &#215; 24 m</td><td>Chilled</td><td>+10 &#176;C</td><td>4 belt</td><td>4 deboning lines, 16 debone stations, 8 trim benches</td></tr>
+      <tr><td>Byproduct</td><td>26 &#215; 26 m</td><td>Clean</td><td>+10 &#176;C</td><td>2 belt</td><td>Red and green offal tables, grinders</td></tr>
+      <tr><td>Rendering</td><td>20 &#215; 26 m</td><td>Dirty</td><td>&mdash;</td><td>&mdash;</td><td>Inedible hoppers</td></tr>
+      <tr><td>Packing</td><td>30 &#215; 24 m</td><td>Chilled</td><td>+6 &#176;C</td><td>3 belt</td><td>Vacuum packers, metal detection, palletisers</td></tr>
+      <tr><td>Cold store</td><td>30 &#215; 24 m</td><td>Chilled</td><td>&minus;2 &#176;C</td><td>&mdash;</td><td>Pallet racking</td></tr>
+      <tr><td>Dispatch</td><td>24 &#215; 24 m</td><td>Chilled</td><td>+4 &#176;C</td><td>&mdash;</td><td>Dock, load-out</td></tr>
+      <tr><td>Plant room</td><td>18 &#215; 26 m</td><td>Support</td><td>&mdash;</td><td>&mdash;</td><td>Refrigeration, compressors</td></tr>
+      <tr><td>Hygiene</td><td>20 &#215; 26 m</td><td>Support</td><td>&mdash;</td><td>&mdash;</td><td>Boot wash, welfare, laundry</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><div class="sec-num">04</div><h2>Model shopping list</h2></div>
+  <p class="lede">What the plan calls for, and what exists. Counts are instances, not distinct meshes &mdash; one <code>DEBONE_STATION</code> mesh placed sixteen times.</p>
+  <!--SHOPPING-->
+</section>
+
+</div>
