@@ -200,9 +200,9 @@ void USparkplugEdgeNode::HandleMqttConnected(const EMqttConnectReturnCode Return
 
 	// Peer taps are re-issued per session: MQTT subscriptions do not survive a
 	// reconnect on a clean session, and this node reconnects on its own.
-	for (const FString& ForeignEdgeNodeId : ObservedEdgeNodes)
+	for (const TPair<FString, FString>& Observed : ObservedEdgeNodes)
 	{
-		SubscribeToObserved(ForeignEdgeNodeId);
+		SubscribeToObserved(Observed.Key, Observed.Value);
 	}
 
 	PublishRebirth();
@@ -211,16 +211,19 @@ void USparkplugEdgeNode::HandleMqttConnected(const EMqttConnectReturnCode Return
 	OnOnlineStateChanged.Broadcast(true);
 }
 
-void USparkplugEdgeNode::ObserveEdgeNode(const FString& ForeignEdgeNodeId)
+void USparkplugEdgeNode::ObserveEdgeNode(
+	const FString& ForeignEdgeNodeId, const FString& ForeignGroupId)
 {
 	if (ForeignEdgeNodeId.IsEmpty())
 	{
 		return;
 	}
 
+	const FString Group = ForeignGroupId.IsEmpty() ? Config.GroupId : ForeignGroupId;
+
 	// Tapping ourselves would loop our own DDATA back in as if a peer had sent
 	// it, which for a follower means acting on our own output.
-	if (ForeignEdgeNodeId == Config.EdgeNodeId)
+	if (Group == Config.GroupId && ForeignEdgeNodeId == Config.EdgeNodeId)
 	{
 		UE_LOG(LogSparkplugB, Warning,
 			TEXT("Refusing to observe '%s': that is this node"), *ForeignEdgeNodeId);
@@ -228,7 +231,7 @@ void USparkplugEdgeNode::ObserveEdgeNode(const FString& ForeignEdgeNodeId)
 	}
 
 	bool bAlreadyObserved = false;
-	ObservedEdgeNodes.Add(ForeignEdgeNodeId, &bAlreadyObserved);
+	ObservedEdgeNodes.Add(TPair<FString, FString>(Group, ForeignEdgeNodeId), &bAlreadyObserved);
 	if (bAlreadyObserved)
 	{
 		return;
@@ -238,13 +241,15 @@ void USparkplugEdgeNode::ObserveEdgeNode(const FString& ForeignEdgeNodeId)
 	// otherwise HandleMqttConnected picks it up when the session comes up.
 	if (bOnline && Client != nullptr)
 	{
-		SubscribeToObserved(ForeignEdgeNodeId);
+		SubscribeToObserved(Group, ForeignEdgeNodeId);
 	}
 }
 
-void USparkplugEdgeNode::StopObservingEdgeNode(const FString& ForeignEdgeNodeId)
+void USparkplugEdgeNode::StopObservingEdgeNode(
+	const FString& ForeignEdgeNodeId, const FString& ForeignGroupId)
 {
-	if (ObservedEdgeNodes.Remove(ForeignEdgeNodeId) == 0)
+	const FString Group = ForeignGroupId.IsEmpty() ? Config.GroupId : ForeignGroupId;
+	if (ObservedEdgeNodes.Remove(TPair<FString, FString>(Group, ForeignEdgeNodeId)) == 0)
 	{
 		return;
 	}
@@ -252,13 +257,14 @@ void USparkplugEdgeNode::StopObservingEdgeNode(const FString& ForeignEdgeNodeId)
 	if (Client != nullptr)
 	{
 		Client->Unsubscribe(FString::Printf(TEXT("%s/%s/+/%s"),
-			*Config.Namespace, *Config.GroupId, *ForeignEdgeNodeId));
+			*Config.Namespace, *Group, *ForeignEdgeNodeId));
 		Client->Unsubscribe(FString::Printf(TEXT("%s/%s/+/%s/+"),
-			*Config.Namespace, *Config.GroupId, *ForeignEdgeNodeId));
+			*Config.Namespace, *Group, *ForeignEdgeNodeId));
 	}
 }
 
-void USparkplugEdgeNode::SubscribeToObserved(const FString& ForeignEdgeNodeId)
+void USparkplugEdgeNode::SubscribeToObserved(
+	const FString& ForeignGroupId, const FString& ForeignEdgeNodeId)
 {
 	if (Client == nullptr)
 	{
@@ -268,13 +274,13 @@ void USparkplugEdgeNode::SubscribeToObserved(const FString& ForeignEdgeNodeId)
 	// Two filters because MQTT '+' matches exactly one level: the first catches
 	// the peer's node messages, the second its devices.
 	Client->Subscribe(FString::Printf(TEXT("%s/%s/+/%s"),
-		*Config.Namespace, *Config.GroupId, *ForeignEdgeNodeId), EMqttQoS::AtLeastOnce);
+		*Config.Namespace, *ForeignGroupId, *ForeignEdgeNodeId), EMqttQoS::AtLeastOnce);
 	Client->Subscribe(FString::Printf(TEXT("%s/%s/+/%s/+"),
-		*Config.Namespace, *Config.GroupId, *ForeignEdgeNodeId), EMqttQoS::AtLeastOnce);
+		*Config.Namespace, *ForeignGroupId, *ForeignEdgeNodeId), EMqttQoS::AtLeastOnce);
 
 	UE_LOG(LogSparkplugB, Log,
 		TEXT("Observing peer edge node '%s' in group '%s'"),
-		*ForeignEdgeNodeId, *Config.GroupId);
+		*ForeignEdgeNodeId, *ForeignGroupId);
 }
 
 void USparkplugEdgeNode::HandleMqttDisconnected()
@@ -437,12 +443,15 @@ void USparkplugEdgeNode::HandleMqttMessage(const FMqttTransportMessage& Message)
 		return;
 	}
 
+	const FString& Group = Segments[1];
 	const FString& Verb = Segments[2];
 	const FString& Node = Segments[3];
 
 	// A peer's traffic, arriving because of an ObserveEdgeNode tap. It is
 	// reported and nothing more: commands are only ever honoured for this node.
-	if (Node != Config.EdgeNodeId)
+	// The group counts as much as the node id -- a peer in another group may
+	// reuse an edge node id, and must not be mistaken for this node.
+	if (Group != Config.GroupId || Node != Config.EdgeNodeId)
 	{
 		ESparkplugMessageType MessageType = ESparkplugMessageType::NDATA;
 		if (ParseObservableVerb(Verb, MessageType))

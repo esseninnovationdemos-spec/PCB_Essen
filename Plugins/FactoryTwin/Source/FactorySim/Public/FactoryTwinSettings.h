@@ -98,6 +98,16 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "External Control")
 	FString PlcEdgeNodeId = TEXT("PLC01");
 
+	/**
+	 * Sparkplug group the PLC publishes under. Empty means the line's own group.
+	 *
+	 * Separate because groov Manage rejects the colons in this plant's ISA-95
+	 * group id (InnoLab:Essen:SMT), although the Sparkplug spec allows them, so
+	 * the EPIC cannot join the line's group and publishes in one of its own.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "External Control")
+	FString PlcGroupId;
+
 	/** How long the PLC may go quiet before the watchdog acts. */
 	UPROPERTY(Config, EditAnywhere, Category = "External Control",
 		meta = (ClampMin = "1.0", Units = "s"))

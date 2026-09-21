@@ -66,7 +66,7 @@ In groov Manage: **MQTT → Add broker** (older firmware: **Configure → MQTT**
 | Username / password | as provisioned | See "Credentials". |
 | Client ID | `groov_epic_plc01` | Must be unique on the broker — a duplicate silently kicks the other session off in a loop. |
 | Payload format | **Sparkplug B** | Not "string". String payloads publish JSON on a different topic tree and the twin will not see them. |
-| Group ID | `InnoLab:Essen:SMT` | Must match the line exactly, colons included. Sparkplug reserves `/`, `+` and `#` here, which is why the ISA-95 levels are colon-joined. |
+| Group ID | `InnoLab_Essen_SMT` | Must match `PlcGroupId` in the twin's settings. Not the line's own `InnoLab:Essen:SMT`: groov Manage rejects the colons, although the Sparkplug spec allows them, so the PLC publishes in a group of its own and the twin subscribes to it there. |
 | Edge Node ID | `PLC01` | Must match `PlcEdgeNodeId` in the twin's settings. |
 
 Group and Edge Node ID are the two that must be character-exact. Everything
@@ -96,6 +96,7 @@ In the project, `Config/DefaultGame.ini`:
 [/Script/FactorySim.FactoryTwinSettings]
 bExternalControlEnabled=True
 PlcEdgeNodeId=PLC01
+PlcGroupId=InnoLab_Essen_SMT
 PlcTimeoutSeconds=10.0
 bFallBackToLocalOnPlcTimeout=True
 PlcHostAddress=192.168.100.52

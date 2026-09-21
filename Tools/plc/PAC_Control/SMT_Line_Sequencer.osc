@@ -139,6 +139,13 @@ nBoardsReleased  = 0;
 nPermissiveLast  = -1;       // -1, not 0, so the first scan always publishes
 nResetButtonLast = 0;
 nTaktRunning     = 1;
+nHeartbeat       = 0;
+
+// Bench mode: run with nothing wired to the panel. The permissive below needs
+// diEStopOk and diRunSelector on, and an unwired input reads off -- so on a
+// bare controller the line would sit blocked forever and look broken. Set this
+// to 0 once the e-stop and run selector are wired (plan phase 4).
+nBenchNoIO       = 1;
 
 for nIndex = 0 to 16 step 1
   nStationFired[nIndex] = 1; // no takt has opened yet; nothing is due
@@ -154,6 +161,7 @@ Line1_new_material = 0;
 Line1_mode = "external";
 
 StartTimer(tTakt);
+StartTimer(tHeartbeat);
 
 
 // ===========================================================================
@@ -164,6 +172,22 @@ StartTimer(tTakt);
 nEStopHealthy = IsOn(diEStopOk);
 nRunSelector  = IsOn(diRunSelector);
 nResetButton  = IsOn(diResetButton);
+
+if (nBenchNoIO == 1) then
+  nEStopHealthy = 1;
+  nRunSelector  = 1;
+endif
+
+// --- heartbeat --------------------------------------------------------------
+// groov publishes only what changes. A line that is held, or between takts,
+// changes nothing -- and the twin reads ten seconds of silence as a dead PLC
+// and takes sequencing back. A once-a-second counter is what says "alive".
+// It carries no command word, so the twin counts it as traffic and otherwise
+// ignores it.
+if (tHeartbeat >= 1.0) then
+  StartTimer(tHeartbeat);
+  nHeartbeat = nHeartbeat + 1;
+endif
 
 nPermissive = 0;
 if (nEStopHealthy == 1 and nRunSelector == 1) then

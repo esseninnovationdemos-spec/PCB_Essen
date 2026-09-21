@@ -157,12 +157,17 @@ public:
 	 *
 	 * Safe to call before Connect: the subscription is re-issued every time the
 	 * session comes up, so it survives a broker reconnect.
+	 *
+	 * @param ForeignGroupId Group the peer publishes under; empty means this
+	 *        node's own group. A peer can have to sit in a group of its own: groov
+	 *        Manage rejects the colons this plant's ISA-95 group id is built from,
+	 *        although the Sparkplug spec allows them.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Sparkplug")
-	void ObserveEdgeNode(const FString& ForeignEdgeNodeId);
+	void ObserveEdgeNode(const FString& ForeignEdgeNodeId, const FString& ForeignGroupId = TEXT(""));
 
 	UFUNCTION(BlueprintCallable, Category = "Sparkplug")
-	void StopObservingEdgeNode(const FString& ForeignEdgeNodeId);
+	void StopObservingEdgeNode(const FString& ForeignEdgeNodeId, const FString& ForeignGroupId = TEXT(""));
 
 	UFUNCTION(BlueprintPure, Category = "Sparkplug")
 	bool IsOnline() const { return bOnline; }
@@ -201,7 +206,7 @@ private:
 	/** Bumps bdSeq and builds the will. Called by the transport before each CONNECT. */
 	TArray<uint8> BuildSessionDeathPayload();
 	/** Issues the wildcard subscriptions that tap one peer edge node. */
-	void SubscribeToObserved(const FString& ForeignEdgeNodeId);
+	void SubscribeToObserved(const FString& ForeignGroupId, const FString& ForeignEdgeNodeId);
 
 	void PublishNodeBirth();
 	void PublishDeviceBirth(const FString& DeviceId);
@@ -222,7 +227,7 @@ private:
 	TArray<FString> DeviceOrder;
 
 	/** Peer edge nodes this session taps, re-subscribed on every reconnect. */
-	TSet<FString> ObservedEdgeNodes;
+	TSet<TPair<FString, FString>> ObservedEdgeNodes;
 
 	int32 Sequence = 0;
 	/** Atomic: bumped on the transport worker, read when NBIRTH is built. */

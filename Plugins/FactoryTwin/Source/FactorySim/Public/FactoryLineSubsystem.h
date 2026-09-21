@@ -318,6 +318,9 @@ private:
 	/** Peer edge node being followed. Empty means DCMD-only. */
 	FString PlcEdgeNodeId;
 
+	/** Group that peer publishes under. Empty means this line's own group. */
+	FString PlcGroupId;
+
 	/** Platform seconds when the PLC last spoke. Zero means never. */
 	double LastPlcMessageSeconds = 0.0;
 

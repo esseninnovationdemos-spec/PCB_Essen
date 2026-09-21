@@ -229,6 +229,7 @@ void UFactoryLineSubsystem::BeginEdgeNodeSession()
 		PlcEdgeNodeId = ControlSettings->bExternalControlEnabled
 			? ControlSettings->PlcEdgeNodeId
 			: FString();
+		PlcGroupId = ControlSettings->PlcGroupId;
 	}
 
 	// Group the registered machines by the work centre they belong to. Devices
@@ -278,7 +279,7 @@ void UFactoryLineSubsystem::BeginEdgeNodeSession()
 		// PLC message can slip through between connecting and subscribing.
 		if (!PlcEdgeNodeId.IsEmpty() && PlcEdgeNodeId != Config.EdgeNodeId)
 		{
-			Node->ObserveEdgeNode(PlcEdgeNodeId);
+			Node->ObserveEdgeNode(PlcEdgeNodeId, PlcGroupId);
 		}
 
 		EdgeNodes.Add(Pair.Key, Node);

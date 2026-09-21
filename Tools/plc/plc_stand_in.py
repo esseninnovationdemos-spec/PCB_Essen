@@ -174,7 +174,9 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--host", default="127.0.0.1", help="broker host")
     parser.add_argument("--port", type=int, default=31883, help="broker port")
-    parser.add_argument("--group", default="InnoLab:Essen:SMT", help="Sparkplug group id")
+    parser.add_argument("--group", default="InnoLab_Essen_SMT",
+                        help="Sparkplug group the PLC publishes under (PlcGroupId). "
+                             "Not the line group: groov Manage rejects colons.")
     parser.add_argument("--node", default="PLC01", help="this controller's edge node id")
     parser.add_argument("--line", default="Line1", help="edge node id of the line to drive")
     parser.add_argument("--takt", type=float, default=6.0, help="seconds between board releases")

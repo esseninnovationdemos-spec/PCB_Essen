@@ -117,6 +117,14 @@ The three outputs are worth wiring even for a demo: a physical tower lit from
 the panel's own view of the line reads from across a room in a way a screen
 does not, and it keeps telling the truth when the network is down.
 
+## Housekeeping tags
+
+| Name | Type | Meaning |
+|---|---|---|
+| `nHeartbeat` | Integer 32 | +1 every second. Must be **published**: groov sends only changes, and without it an idle line goes silent and the twin's 10 s watchdog hands sequencing back to the sim. |
+| `tHeartbeat` | Up timer | Paces `nHeartbeat`. |
+| `nBenchNoIO` | Integer 32 | `1` = run without the e-stop and run selector wired. Set to `0` once they are (plan phase 4). |
+
 ## Generating the tag list
 
 51 tags is tedious by hand and easy to typo. Paste this into any shell to print
