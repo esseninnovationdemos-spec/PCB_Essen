@@ -134,7 +134,7 @@ fStationOffset[15] = 0.92;   // EOL_TEST
 fStationOffset[16] = 0.97;   // PACKAGING
 
 // --- starting state --------------------------------------------------------
-fTaktSeconds     = 6.0;
+fTaktSeconds     = 8.0;   // matches the sim's release interval and the line's capacity
 nBoardsReleased  = 0;
 nPermissiveLast  = -1;       // -1, not 0, so the first scan always publishes
 nResetButtonLast = 0;
