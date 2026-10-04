@@ -315,8 +315,15 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 			{ 40.0, 50.0 }, { 25.0, 70.0 }, 25.0, 65.0);
 		CoolTemp.bThermal = true;
 
+		// Three minutes is the real figure for a reflow profile, and it made the
+		// oven the hard bottleneck of the whole line: boards arrive every 5 s
+		// (AutoProductionIntervalSeconds) and the PLC's takt is 6 s, so ~36 arrive
+		// per one the oven cleared. The five stations ahead of it sat Blocked
+		// 91-98% of the time and everything behind it starved. Compressed to a
+		// few seconds so the line actually flows -- the same compression the rest
+		// of the demo already applies to time.
 		ThermalType->Metrics = { OvenTemp, CoolTemp,
-			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 175.0, 185.0 }, { 160.0, 220.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 3.5, 5.0 }, { 2.0, 12.0 }) };
 		Created.Add(ThermalType);
 	}
 
