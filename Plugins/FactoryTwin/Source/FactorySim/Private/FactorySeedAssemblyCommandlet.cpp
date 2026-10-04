@@ -230,7 +230,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 		Depth.MotionPeriodSeconds = 1.5;
 
 		PressType->Metrics = { Force, Depth,
-			MakeCycleTime(TEXT("cycle_time_sec"), { 1.2, 2.4 }, { 0.5, 6.0 }) };
+			MakeCycleTime(TEXT("cycle_time_sec"), { 3.0, 4.5 }, { 1.0, 10.0 }) };
 		Created.Add(PressType);
 	}
 
@@ -352,8 +352,8 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 			MakeCycleTime(TEXT("cycle_time_sec"), { 3.5, 5.0 }, { 2.0, 15.0 }) };
 		// Sealing bar is thermal, so it should ease rather than step.
 		PackType->Metrics[1].bThermal = true;
-		PackType->WarmupSeconds = 3.0f;
-		PackType->CooldownSeconds = 3.0f;
+		PackType->WarmupSeconds = 1.5f;
+		PackType->CooldownSeconds = 1.5f;
 		Created.Add(PackType);
 	}
 

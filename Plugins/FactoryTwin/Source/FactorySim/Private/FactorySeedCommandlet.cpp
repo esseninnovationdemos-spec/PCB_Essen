@@ -285,7 +285,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		ArmZ.MotionPeriodSeconds = 1.0;
 
 		PlacerType->Metrics = { ArmX, ArmY, ArmZ,
-			MakeCycleTimeMetric(TEXT("cycle_time"), { 0.4, 2.5 }, { 0.05, 6.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time"), { 3.0, 4.5 }, { 1.0, 10.0 }) };
 		Created.Add(PlacerType);
 	}
 
@@ -304,8 +304,8 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		// Scaled with the cycle below. At 20 s against a 4 s cycle the oven spent
 		// most of its life warming rather than working, which reads as a stalled
 		// line even though nothing is wrong.
-		ThermalType->WarmupSeconds = 4.0f;
-		ThermalType->CooldownSeconds = 4.0f;
+		ThermalType->WarmupSeconds = 1.5f;
+		ThermalType->CooldownSeconds = 1.5f;
 
 		// SAC305 reflow peak band.
 		FFactoryMetricDefinition OvenTemp = MakeFloatMetric(TEXT("oven_temp_c"), TEXT("C"),
@@ -341,8 +341,8 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 			"where the source is powered but not yet at working output.");
 		LaserType->StateModel = EFactoryStateModel::Automated;
 		LaserType->DefaultTickIntervalSeconds = 0.5f;
-		LaserType->WarmupSeconds = 3.0f;
-		LaserType->CooldownSeconds = 2.0f;
+		LaserType->WarmupSeconds = 1.0f;
+		LaserType->CooldownSeconds = 1.0f;
 
 		FFactoryMetricDefinition LaserTemp = MakeFloatMetric(TEXT("laser_temp_c"), TEXT("C"),
 			{ 38.0, 52.0 }, { 20.0, 110.0 }, 28.0, 101.0);
@@ -383,7 +383,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		VisionType->bIsInspectionStation = true;
 		VisionType->DefaultFailRate = 0.02f;
 		VisionType->Metrics = {
-			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 2.0, 3.0 }, { 1.5, 5.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 3.0, 4.5 }, { 1.5, 10.0 }) };
 		Created.Add(VisionType);
 	}
 
