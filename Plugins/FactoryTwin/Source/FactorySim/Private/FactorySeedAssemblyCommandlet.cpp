@@ -254,7 +254,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 				{ 120.0, 180.0 }, { 0.0, 500.0 }, 0.0, 470.0),
 			MakeFloat(TEXT("insulation_mohm"), TEXT("MOhm"),
 				{ 45.0, 90.0 }, { 0.0, 120.0 }, 0.0, 2.0),
-			MakeCycleTime(TEXT("cycle_time_sec"), { 8.0, 14.0 }, { 4.0, 30.0 }) };
+			MakeCycleTime(TEXT("cycle_time_sec"), { 3.0, 4.5 }, { 2.0, 15.0 }) };
 		Created.Add(IctType);
 	}
 
@@ -276,7 +276,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 				{ 480.0, 620.0 }, { 0.0, 800.0 }, 0.0, 40.0),
 			MakeInt(TEXT("flash_bytes"), TEXT("B"),
 				{ 262144.0, 262144.0 }, { 0.0, 1048576.0 }, 0.0),
-			MakeCycleTime(TEXT("cycle_time_sec"), { 4.0, 7.0 }, { 2.0, 20.0 }) };
+			MakeCycleTime(TEXT("cycle_time_sec"), { 3.0, 4.5 }, { 2.0, 15.0 }) };
 		Created.Add(FlashType);
 	}
 
@@ -299,7 +299,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 				{ 90.0, 140.0 }, { 0.0, 400.0 }, 0.0, 380.0),
 			MakeFloat(TEXT("boot_time_ms"), TEXT("ms"),
 				{ 380.0, 520.0 }, { 0.0, 3000.0 }, 0.0, 2900.0),
-			MakeCycleTime(TEXT("cycle_time_sec"), { 10.0, 18.0 }, { 5.0, 40.0 }) };
+			MakeCycleTime(TEXT("cycle_time_sec"), { 3.5, 5.0 }, { 2.0, 20.0 }) };
 		Created.Add(EolType);
 	}
 
@@ -329,7 +329,7 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 		RobotType->Metrics = { TcpSpeed, JointLoad,
 			MakeFloat(TEXT("payload_kg"), TEXT("kg"),
 				{ 0.4, 1.8 }, { 0.0, 5.0 }, 0.0, 0.0),
-			MakeCycleTime(TEXT("cycle_time_sec"), { 3.0, 8.0 }, { 1.0, 20.0 }) };
+			MakeCycleTime(TEXT("cycle_time_sec"), { 3.0, 4.5 }, { 1.0, 12.0 }) };
 		Created.Add(RobotType);
 	}
 
@@ -349,11 +349,11 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 				{ 0.0, 24.0 }, { 0.0, 24.0 }, 0.0),
 			MakeFloat(TEXT("seal_temp_c"), TEXT("C"),
 				{ 140.0, 165.0 }, { 20.0, 200.0 }, 22.0, 195.0),
-			MakeCycleTime(TEXT("cycle_time_sec"), { 6.0, 11.0 }, { 3.0, 25.0 }) };
+			MakeCycleTime(TEXT("cycle_time_sec"), { 3.5, 5.0 }, { 2.0, 15.0 }) };
 		// Sealing bar is thermal, so it should ease rather than step.
 		PackType->Metrics[1].bThermal = true;
-		PackType->WarmupSeconds = 15.0f;
-		PackType->CooldownSeconds = 12.0f;
+		PackType->WarmupSeconds = 3.0f;
+		PackType->CooldownSeconds = 3.0f;
 		Created.Add(PackType);
 	}
 
@@ -397,12 +397,12 @@ int32 UFactorySeedAssemblyCommandlet::Main(const FString& Params)
 		// A person's pace varies far more than a servo's, and slows as a shift
 		// wears on -- which is the point of measuring a manual step at all.
 		FFactoryMetricDefinition Cycle =
-			MakeCycleTime(TEXT("cycle_time_sec"), { 8.0, 16.0 }, { 4.0, 45.0 });
+			MakeCycleTime(TEXT("cycle_time_sec"), { 4.0, 6.0 }, { 3.0, 20.0 });
 		Cycle.Fluctuation.bEnabled = true;
 		Cycle.Fluctuation.NoisePercent = 12.0;
 		Cycle.Drift.bEnabled = true;
 		Cycle.Drift.RatePerHour = 1.5;
-		Cycle.Drift.MaxDrift = 4.0;
+		Cycle.Drift.MaxDrift = 1.5;
 		Cycle.Drift.bResetOnIdle = true;
 
 		BenchType->Metrics = { Cycle };

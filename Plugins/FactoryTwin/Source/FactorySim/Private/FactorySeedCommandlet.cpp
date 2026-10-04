@@ -301,8 +301,11 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		ThermalType->StateModel = EFactoryStateModel::Automated;
 		ThermalType->DefaultTickIntervalSeconds = 1.0f;
 		ThermalType->ThermalRampConstant = 3.0f;
-		ThermalType->WarmupSeconds = 20.0f;
-		ThermalType->CooldownSeconds = 20.0f;
+		// Scaled with the cycle below. At 20 s against a 4 s cycle the oven spent
+		// most of its life warming rather than working, which reads as a stalled
+		// line even though nothing is wrong.
+		ThermalType->WarmupSeconds = 4.0f;
+		ThermalType->CooldownSeconds = 4.0f;
 
 		// SAC305 reflow peak band.
 		FFactoryMetricDefinition OvenTemp = MakeFloatMetric(TEXT("oven_temp_c"), TEXT("C"),
@@ -338,8 +341,8 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 			"where the source is powered but not yet at working output.");
 		LaserType->StateModel = EFactoryStateModel::Automated;
 		LaserType->DefaultTickIntervalSeconds = 0.5f;
-		LaserType->WarmupSeconds = 8.0f;
-		LaserType->CooldownSeconds = 5.0f;
+		LaserType->WarmupSeconds = 3.0f;
+		LaserType->CooldownSeconds = 2.0f;
 
 		FFactoryMetricDefinition LaserTemp = MakeFloatMetric(TEXT("laser_temp_c"), TEXT("C"),
 			{ 38.0, 52.0 }, { 20.0, 110.0 }, 28.0, 101.0);
@@ -358,7 +361,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		Fume.WarmupValue = 1500.0;
 
 		LaserType->Metrics = { LaserTemp, LaserPower, Fume,
-			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 12.0, 17.0 }, { 10.0, 25.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 3.0, 4.5 }, { 2.0, 12.0 }) };
 		Created.Add(LaserType);
 	}
 
@@ -397,7 +400,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		ManualType->StateModel = EFactoryStateModel::Manual;
 		ManualType->DefaultTickIntervalSeconds = 1.0f;
 		ManualType->Metrics = {
-			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 25.0, 90.0 }, { 10.0, 300.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 3.5, 5.0 }, { 2.0, 20.0 }) };
 		Created.Add(ManualType);
 	}
 
@@ -414,7 +417,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		// Zero means event-only; the component skips scheduled publishing.
 		LineType->DefaultTickIntervalSeconds = 0.0f;
 		LineType->Metrics = {
-			MakeCycleTimeMetric(TEXT("cycle_time"), { 125.0, 195.0 }, { 100.0, 240.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time"), { 60.0, 100.0 }, { 40.0, 160.0 }) };
 		Created.Add(LineType);
 	}
 
