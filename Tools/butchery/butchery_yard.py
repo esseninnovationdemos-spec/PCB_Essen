@@ -12,7 +12,7 @@ tileable pieces starting and stopping on their nominal length.
 
 import math
 
-from butchery_lib import box, cyl, frame, key_spin, tube
+from butchery_lib import box, cyl, key_spin, tube
 
 LOOP = 60
 
