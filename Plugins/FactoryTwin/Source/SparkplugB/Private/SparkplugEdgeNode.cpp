@@ -1,13 +1,33 @@
 #include "SparkplugEdgeNode.h"
 
 #include "MqttTransportClient.h"
-#include "SparkplugProto.h"
+#include "SparkplugJson.h"
 
 namespace
 {
 	/** Metric name the spec reserves for forcing a re-announce. */
 	const FString RebirthMetricName = TEXT("Node Control/Rebirth");
 	const FString BirthDeathSequenceMetricName = TEXT("bdSeq");
+	const FString DefaultJsonNamespace = TEXT("spBv1.0-json");
+
+	/** A namespace is one topic level, so it may not hold a separator or a wildcard. */
+	bool IsValidNamespace(const FString& Namespace)
+	{
+		return !Namespace.IsEmpty()
+			&& !Namespace.Contains(TEXT("/"))
+			&& !Namespace.Contains(TEXT("+"))
+			&& !Namespace.Contains(TEXT("#"));
+	}
+
+	const TCHAR* EncodingName(const ESparkplugPayloadEncoding Encoding)
+	{
+		switch (Encoding)
+		{
+		case ESparkplugPayloadEncoding::Json: return TEXT("JSON");
+		case ESparkplugPayloadEncoding::Both: return TEXT("protobuf + JSON");
+		default:                              return TEXT("protobuf");
+		}
+	}
 
 	/**
 	 * Parses the verb segment of a topic.
@@ -78,6 +98,24 @@ void USparkplugEdgeNode::Connect(const FSparkplugEdgeNodeConfig& InConfig)
 
 	Config = InConfig;
 
+	if (Config.Encoding != ESparkplugPayloadEncoding::Protobuf && !IsValidNamespace(Config.JsonNamespace))
+	{
+		UE_LOG(LogSparkplugB, Warning,
+			TEXT("JsonNamespace '%s' is not a single topic level; using '%s'"),
+			*Config.JsonNamespace, *DefaultJsonNamespace);
+		Config.JsonNamespace = DefaultJsonNamespace;
+	}
+
+	// Two encodings on one set of topics would be indistinguishable to every
+	// consumer. Keep the spec stream rather than guess which one was meant.
+	if (Config.Encoding == ESparkplugPayloadEncoding::Both && Config.JsonNamespace == Config.Namespace)
+	{
+		UE_LOG(LogSparkplugB, Error,
+			TEXT("Encoding Both needs a JsonNamespace other than '%s'; publishing protobuf only"),
+			*Config.Namespace);
+		Config.Encoding = ESparkplugPayloadEncoding::Protobuf;
+	}
+
 	Client = NewObject<UMqttTransportClient>(this);
 	Client->OnConnected.AddDynamic(this, &USparkplugEdgeNode::HandleMqttConnected);
 	Client->OnDisconnected.AddDynamic(this, &USparkplugEdgeNode::HandleMqttDisconnected);
@@ -88,7 +126,7 @@ void USparkplugEdgeNode::Connect(const FSparkplugEdgeNodeConfig& InConfig)
 	// The death certificate must be registered as the will *before* connecting;
 	// that is the whole reason this project has its own MQTT client.
 	Options.Will.bEnabled = true;
-	Options.Will.Topic = BuildTopic(ESparkplugMessageType::NDEATH, FString());
+	Options.Will.Topic = BuildTopicIn(GetPrimaryStream().Namespace, ESparkplugMessageType::NDEATH, FString());
 	Options.Will.QoS = EMqttQoS::AtLeastOnce;
 	Options.Will.bRetain = false;
 
@@ -100,10 +138,11 @@ void USparkplugEdgeNode::Connect(const FSparkplugEdgeNodeConfig& InConfig)
 		this, &USparkplugEdgeNode::BuildSessionDeathPayload));
 
 	// Seed the will for the very first CONNECT; the provider refreshes it after.
-	Options.Will.Payload = BuildDeathPayload();
+	Options.Will.Payload = BuildDeathPayload(GetPrimaryStream().Encoding);
 
-	UE_LOG(LogSparkplugB, Log, TEXT("Edge node '%s/%s' connecting to %s:%d"),
-		*Config.GroupId, *Config.EdgeNodeId, *Options.Host, Options.Port);
+	UE_LOG(LogSparkplugB, Log, TEXT("Edge node '%s/%s' connecting to %s:%d, publishing %s"),
+		*Config.GroupId, *Config.EdgeNodeId, *Options.Host, Options.Port,
+		EncodingName(Config.Encoding));
 
 	Client->Connect(Options);
 }
@@ -126,11 +165,15 @@ void USparkplugEdgeNode::Disconnect()
 				ESparkplugMessageType::DDEATH, DeviceId, DevicePayload, EMqttQoS::AtLeastOnce);
 		}
 
-		Client->PublishBytes(
-			BuildTopic(ESparkplugMessageType::NDEATH, FString()),
-			BuildDeathPayload(),
-			EMqttQoS::AtLeastOnce,
-			false);
+		// On every stream: only the primary one has the will behind it.
+		for (const FStream& Stream : GetStreams())
+		{
+			Client->PublishBytes(
+				BuildTopicIn(Stream.Namespace, ESparkplugMessageType::NDEATH, FString()),
+				BuildDeathPayload(Stream.Encoding),
+				EMqttQoS::AtLeastOnce,
+				false);
+		}
 	}
 
 	bOnline = false;
@@ -153,10 +196,11 @@ TArray<uint8> USparkplugEdgeNode::BuildSessionDeathPayload()
 	// Runs on the transport worker thread immediately before CONNECT.
 	// BirthDeathSequence is atomic because NBIRTH reads it from the game thread.
 	BirthDeathSequence.fetch_add(1, std::memory_order_relaxed);
-	return BuildDeathPayload();
+	// Config is fixed for the life of the session, so reading it here is safe.
+	return BuildDeathPayload(GetPrimaryStream().Encoding);
 }
 
-TArray<uint8> USparkplugEdgeNode::BuildDeathPayload() const
+TArray<uint8> USparkplugEdgeNode::BuildDeathPayload(const ESparkplugPayloadEncoding Encoding) const
 {
 	FSparkplugPayload Payload;
 	Payload.Timestamp = SparkplugUtils::UtcNowMilliseconds();
@@ -169,7 +213,7 @@ TArray<uint8> USparkplugEdgeNode::BuildDeathPayload() const
 	Metric.Timestamp = 0;
 	Payload.Metrics.Add(MoveTemp(Metric));
 
-	return SparkplugProto::EncodePayload(Payload);
+	return SparkplugCodec::EncodePayload(Payload, Encoding);
 }
 
 void USparkplugEdgeNode::HandleMqttConnected(const EMqttConnectReturnCode ReturnCode)
@@ -193,10 +237,17 @@ void USparkplugEdgeNode::HandleMqttConnected(const EMqttConnectReturnCode Return
 	}
 
 	// Subscribe before announcing, so a controller reacting to our NBIRTH cannot
-	// send a command we would miss.
-	Client->Subscribe(BuildTopic(ESparkplugMessageType::NCMD, FString()), EMqttQoS::AtLeastOnce);
-	Client->Subscribe(
-		BuildTopic(ESparkplugMessageType::DCMD, TEXT("+")), EMqttQoS::AtLeastOnce);
+	// send a command we would miss. Every stream we publish is one a host may
+	// address us on, and the decoder reads either encoding.
+	for (const FStream& Stream : GetStreams())
+	{
+		Client->Subscribe(
+			BuildTopicIn(Stream.Namespace, ESparkplugMessageType::NCMD, FString()),
+			EMqttQoS::AtLeastOnce);
+		Client->Subscribe(
+			BuildTopicIn(Stream.Namespace, ESparkplugMessageType::DCMD, TEXT("+")),
+			EMqttQoS::AtLeastOnce);
+	}
 
 	// Peer taps are re-issued per session: MQTT subscriptions do not survive a
 	// reconnect on a clean session, and this node reconnects on its own.
@@ -273,6 +324,10 @@ void USparkplugEdgeNode::SubscribeToObserved(
 
 	// Two filters because MQTT '+' matches exactly one level: the first catches
 	// the peer's node messages, the second its devices.
+	//
+	// The Sparkplug namespace only, whatever this node publishes: a PLC speaks
+	// protobuf there, and tapping both streams of a peer that publishes Both
+	// would deliver every message twice -- two triggers for one.
 	Client->Subscribe(FString::Printf(TEXT("%s/%s/+/%s"),
 		*Config.Namespace, *ForeignGroupId, *ForeignEdgeNodeId), EMqttQoS::AtLeastOnce);
 	Client->Subscribe(FString::Printf(TEXT("%s/%s/+/%s/+"),
@@ -405,11 +460,37 @@ bool USparkplugEdgeNode::PublishPayload(
 		Sequence = 1;
 	}
 
-	return Client->PublishBytes(
-		BuildTopic(MessageType, DeviceId),
-		SparkplugProto::EncodePayload(Payload),
-		QoS,
-		false);
+	// With Both, the two publishes are one message in two encodings, so they
+	// share the seq assigned above -- each stream stays gap-free on its own.
+	bool bPublished = true;
+	for (const FStream& Stream : GetStreams())
+	{
+		bPublished &= Client->PublishBytes(
+			BuildTopicIn(Stream.Namespace, MessageType, DeviceId),
+			SparkplugCodec::EncodePayload(Payload, Stream.Encoding),
+			QoS,
+			false);
+	}
+	return bPublished;
+}
+
+TArray<USparkplugEdgeNode::FStream, TInlineAllocator<2>> USparkplugEdgeNode::GetStreams() const
+{
+	TArray<FStream, TInlineAllocator<2>> Streams;
+	if (Config.Encoding != ESparkplugPayloadEncoding::Json)
+	{
+		Streams.Add({ Config.Namespace, ESparkplugPayloadEncoding::Protobuf });
+	}
+	if (Config.Encoding != ESparkplugPayloadEncoding::Protobuf)
+	{
+		Streams.Add({ Config.JsonNamespace, ESparkplugPayloadEncoding::Json });
+	}
+	return Streams;
+}
+
+USparkplugEdgeNode::FStream USparkplugEdgeNode::GetPrimaryStream() const
+{
+	return GetStreams()[0];
 }
 
 uint8 USparkplugEdgeNode::NextSequence()
@@ -427,7 +508,7 @@ void USparkplugEdgeNode::HandleMqttMessage(const FMqttTransportMessage& Message)
 	}
 
 	FSparkplugPayload Payload;
-	if (!SparkplugProto::DecodePayload(Message.Payload, Payload))
+	if (!SparkplugCodec::DecodePayload(Message.Payload, Payload))
 	{
 		UE_LOG(LogSparkplugB, Warning,
 			TEXT("Could not decode inbound payload on '%s' (%d bytes)"),
@@ -485,16 +566,22 @@ void USparkplugEdgeNode::HandleMqttMessage(const FMqttTransportMessage& Message)
 FString USparkplugEdgeNode::BuildTopic(
 	const ESparkplugMessageType MessageType, const FString& DeviceId) const
 {
+	return BuildTopicIn(GetPrimaryStream().Namespace, MessageType, DeviceId);
+}
+
+FString USparkplugEdgeNode::BuildTopicIn(
+	const FString& InNamespace, const ESparkplugMessageType MessageType, const FString& DeviceId) const
+{
 	const FString Verb = SparkplugUtils::MessageTypeToString(MessageType);
 
 	if (DeviceId.IsEmpty())
 	{
 		return FString::Printf(TEXT("%s/%s/%s/%s"),
-			*Config.Namespace, *Config.GroupId, *Verb, *Config.EdgeNodeId);
+			*InNamespace, *Config.GroupId, *Verb, *Config.EdgeNodeId);
 	}
 
 	return FString::Printf(TEXT("%s/%s/%s/%s/%s"),
-		*Config.Namespace, *Config.GroupId, *Verb, *Config.EdgeNodeId, *DeviceId);
+		*InNamespace, *Config.GroupId, *Verb, *Config.EdgeNodeId, *DeviceId);
 }
 
 void USparkplugEdgeNode::BeginDestroy()

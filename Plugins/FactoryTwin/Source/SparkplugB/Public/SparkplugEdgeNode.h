@@ -17,9 +17,28 @@ struct SPARKPLUGB_API FSparkplugEdgeNodeConfig
 {
 	GENERATED_BODY()
 
-	/** Topic namespace. Always "spBv1.0" for Sparkplug B. */
+	/** Topic namespace for protobuf payloads. Always "spBv1.0" for Sparkplug B. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Sparkplug")
 	FString Namespace = TEXT("spBv1.0");
+
+	/** Which encodings go on the wire. See ESparkplugPayloadEncoding. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Sparkplug|Encoding")
+	ESparkplugPayloadEncoding Encoding = ESparkplugPayloadEncoding::Protobuf;
+
+	/**
+	 * Topic namespace for JSON payloads.
+	 *
+	 * Not spBv1.0 by default because a Sparkplug consumer subscribed there
+	 * expects protobuf and fails on JSON. One segment, so every level after it
+	 * keeps its position: a query that reads the group from level 2 works on
+	 * either stream.
+	 *
+	 * Setting it to spBv1.0 is allowed with Encoding = Json, for a broker where
+	 * nothing reads protobuf. With Both it is refused, because the two streams
+	 * would land on the same topics.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Sparkplug|Encoding")
+	FString JsonNamespace = TEXT("spBv1.0-json");
 
 	/**
 	 * Wire-visible: changing this breaks every downstream consumer.
@@ -180,7 +199,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Sparkplug")
 	int64 GetBirthDeathSequence() const { return BirthDeathSequence.load(std::memory_order_relaxed); }
 
-	/** Builds a topic for this node, e.g. spBv1.0/InnoLab:Essen:SMT/DDATA/Line1/REFLOW_OVEN. */
+	/**
+	 * Builds a topic for this node on its primary stream, e.g.
+	 * spBv1.0/InnoLab:Essen:SMT/DDATA/Line1/REFLOW_OVEN. The primary stream is
+	 * protobuf unless Encoding is Json alone.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Sparkplug")
 	FString BuildTopic(ESparkplugMessageType MessageType, const FString& DeviceId) const;
 
@@ -201,7 +224,27 @@ private:
 	/** Consumes and returns the next sequence number, wrapping at 256. */
 	uint8 NextSequence();
 
-	TArray<uint8> BuildDeathPayload() const;
+	/** One namespace this node publishes on, and the encoding it carries. */
+	struct FStream
+	{
+		FString Namespace;
+		ESparkplugPayloadEncoding Encoding;
+	};
+
+	/** Every stream this node publishes, primary first. One entry, or two with Both. */
+	TArray<FStream, TInlineAllocator<2>> GetStreams() const;
+
+	/**
+	 * The stream that carries the MQTT will. A connection has exactly one will,
+	 * so with Both the JSON stream gets an NDEATH only on a clean disconnect;
+	 * an abrupt one is announced on the protobuf stream alone.
+	 */
+	FStream GetPrimaryStream() const;
+
+	FString BuildTopicIn(
+		const FString& InNamespace, ESparkplugMessageType MessageType, const FString& DeviceId) const;
+
+	TArray<uint8> BuildDeathPayload(ESparkplugPayloadEncoding Encoding) const;
 
 	/** Bumps bdSeq and builds the will. Called by the transport before each CONNECT. */
 	TArray<uint8> BuildSessionDeathPayload();
