@@ -1,5 +1,10 @@
 # PLC digital twin — plan and current state
 
+> **Superseded for control (2026-10-16):** commands are moving to OPC UA, with
+> MQTT kept for the UNS only — see
+> [`opcua-control-architecture.md`](opcua-control-architecture.md). The hardware
+> facts and commissioning notes below still hold.
+
 Making a physical Opto 22 groov EPIC decide when the simulated stations cycle,
 over the Sparkplug B bus the demo already runs on.
 
