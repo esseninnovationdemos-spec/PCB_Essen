@@ -2,6 +2,7 @@
 #include "Misc/AutomationTest.h"
 #include "MqttConnection.h"
 #include "SparkplugEdgeNode.h"
+#include "SparkplugJson.h"
 #include "SparkplugProto.h"
 #include "SparkplugTypes.h"
 
@@ -239,6 +240,180 @@ bool FSparkplugSessionLifecycleTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("one DDEATH per device"), DeviceDeaths, 2);
 		// Exactly one: the will must not also fire, because we sent DISCONNECT.
 		TestEqual(TEXT("exactly one NDEATH, will was suppressed"), NodeDeaths, 1);
+	}
+
+	Node->RemoveFromRoot();
+	Watcher->Close();
+	return true;
+}
+
+/**
+ * Encoding = Both against the local broker.
+ *
+ * The two streams are one message in two encodings, so what has to hold is:
+ *   - each lands on its own namespace, in its own encoding
+ *   - they carry the same seq, so each stream is gap-free on its own
+ *   - the JSON DDATA carries metric names, which is the point of it
+ *   - a clean disconnect announces NDEATH on both
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSparkplugBothEncodingsTest,
+	"FactoryTwin.SparkplugB.Live.BothEncodings",
+	SessionTestFlags)
+
+bool FSparkplugBothEncodingsTest::RunTest(const FString& Parameters)
+{
+	const FString GroupId = TEXT("InnoLab:Essen:Test");
+	const FString NodeId = TEXT("EncodingTest");
+	const FString JsonNamespace = TEXT("spBv1.0-json");
+
+	struct FSeen
+	{
+		bool bJsonTopic = false;
+		bool bJsonBytes = false;
+		FString Verb;
+		int64 Seq = -1;
+		bool bHasSeq = false;
+		TArray<FString> MetricNames;
+	};
+
+	FMqttConnectionOptions WatcherOptions;
+	WatcherOptions.Host = TEXT("127.0.0.1");
+	WatcherOptions.Port = 1883;
+	WatcherOptions.ClientId = TEXT("factorytwin-encoding-watcher");
+	WatcherOptions.bAutoReconnect = false;
+
+	const TSharedRef<FMqttConnection, ESPMode::ThreadSafe> Watcher =
+		FMqttConnection::Create(WatcherOptions);
+
+	std::atomic<bool> bWatcherConnected{ false };
+	FCriticalSection SeenLock;
+	TArray<FSeen> Seen;
+
+	Watcher->OnConnected().AddLambda([&bWatcherConnected](const EMqttConnectReturnCode Code)
+	{
+		if (Code == EMqttConnectReturnCode::Accepted) { bWatcherConnected = true; }
+	});
+
+	Watcher->OnMessage().AddLambda(
+		[&Seen, &SeenLock, &JsonNamespace](const FMqttTransportMessage& Message)
+		{
+			TArray<FString> Segments;
+			Message.Topic.ParseIntoArray(Segments, TEXT("/"), false);
+			if (Segments.Num() < 4) { return; }
+
+			FSparkplugPayload Payload;
+			if (!SparkplugCodec::DecodePayload(Message.Payload, Payload)) { return; }
+
+			FSeen Entry;
+			Entry.bJsonTopic = Segments[0] == JsonNamespace;
+			Entry.bJsonBytes = SparkplugJson::LooksLikeJson(Message.Payload);
+			Entry.Verb = Segments[2];
+			Entry.Seq = Payload.Seq;
+			Entry.bHasSeq = Payload.bHasSeq;
+			for (const FSparkplugMetric& Metric : Payload.Metrics)
+			{
+				Entry.MetricNames.Add(Metric.Name);
+			}
+
+			FScopeLock Lock(&SeenLock);
+			Seen.Add(MoveTemp(Entry));
+		});
+
+	Watcher->Open();
+	if (!SpinAndPump([&bWatcherConnected]() { return bWatcherConnected.load(); }, 10.0))
+	{
+		AddWarning(TEXT("No MQTT broker on 127.0.0.1:1883 - skipping. ")
+			TEXT("Start it with: cd Tools/broker && docker compose up -d"));
+		Watcher->Close();
+		return true;
+	}
+
+	Watcher->Subscribe({
+		MakeTuple(FString::Printf(TEXT("spBv1.0/%s/#"), *GroupId), EMqttQoS::AtLeastOnce),
+		MakeTuple(FString::Printf(TEXT("%s/%s/#"), *JsonNamespace, *GroupId), EMqttQoS::AtLeastOnce) });
+	FPlatformProcess::Sleep(0.5f);
+
+	USparkplugEdgeNode* Node = NewObject<USparkplugEdgeNode>();
+	Node->AddToRoot();
+	Node->RegisterDevice(TEXT("REFLOW_OVEN"), {
+		FSparkplugMetric::MakeFloat(TEXT("oven_temp_c"), 23, 0.0f) });
+
+	FSparkplugEdgeNodeConfig NodeConfig;
+	NodeConfig.GroupId = GroupId;
+	NodeConfig.EdgeNodeId = NodeId;
+	NodeConfig.Encoding = ESparkplugPayloadEncoding::Both;
+	NodeConfig.JsonNamespace = JsonNamespace;
+	NodeConfig.Mqtt.Host = TEXT("127.0.0.1");
+	NodeConfig.Mqtt.Port = 1883;
+	NodeConfig.Mqtt.ClientId = TEXT("factorytwin-encoding-node");
+	NodeConfig.Mqtt.bAutoReconnect = false;
+
+	Node->Connect(NodeConfig);
+	TestTrue(TEXT("node came online"), SpinAndPump([Node]() { return Node->IsOnline(); }, 10.0));
+
+	Node->PublishDeviceData(TEXT("REFLOW_OVEN"), {
+		FSparkplugMetric::MakeFloat(TEXT("oven_temp_c"), 23, 241.5f) });
+
+	// NBIRTH, DBIRTH, DDATA -- twice each.
+	TestTrue(TEXT("both streams observed"), SpinAndPump([&Seen, &SeenLock]()
+	{
+		FScopeLock Lock(&SeenLock);
+		return Seen.Num() >= 6;
+	}, 10.0));
+
+	{
+		FScopeLock Lock(&SeenLock);
+
+		for (const FSeen& Entry : Seen)
+		{
+			TestEqual(FString::Printf(TEXT("%s encoding matches its namespace"), *Entry.Verb),
+				Entry.bJsonBytes, Entry.bJsonTopic);
+		}
+
+		for (const TCHAR* Verb : { TEXT("NBIRTH"), TEXT("DBIRTH"), TEXT("DDATA") })
+		{
+			const FSeen* Proto = Seen.FindByPredicate([Verb](const FSeen& E) { return !E.bJsonTopic && E.Verb == Verb; });
+			const FSeen* Json = Seen.FindByPredicate([Verb](const FSeen& E) { return E.bJsonTopic && E.Verb == Verb; });
+			if (!TestNotNull(FString::Printf(TEXT("%s on protobuf"), Verb), Proto)
+				|| !TestNotNull(FString::Printf(TEXT("%s on JSON"), Verb), Json))
+			{
+				continue;
+			}
+			TestEqual(FString::Printf(TEXT("%s same seq on both"), Verb), Json->Seq, Proto->Seq);
+		}
+
+		const FSeen* JsonData = Seen.FindByPredicate([](const FSeen& E) { return E.bJsonTopic && E.Verb == TEXT("DDATA"); });
+		if (JsonData != nullptr)
+		{
+			TestTrue(TEXT("JSON DDATA carries metric names"), JsonData->MetricNames.Contains(TEXT("oven_temp_c")));
+		}
+
+		Seen.Reset();
+	}
+
+	Node->Disconnect();
+
+	SpinAndPump([&Seen, &SeenLock]()
+	{
+		FScopeLock Lock(&SeenLock);
+		return Seen.Num() >= 4;  // DDEATH + NDEATH, on each stream
+	}, 10.0);
+
+	{
+		FScopeLock Lock(&SeenLock);
+		int32 ProtoDeaths = 0;
+		int32 JsonDeaths = 0;
+		for (const FSeen& Entry : Seen)
+		{
+			if (Entry.Verb == TEXT("NDEATH"))
+			{
+				++(Entry.bJsonTopic ? JsonDeaths : ProtoDeaths);
+				TestFalse(TEXT("NDEATH omits seq"), Entry.bHasSeq);
+			}
+		}
+		TestEqual(TEXT("one NDEATH on protobuf"), ProtoDeaths, 1);
+		TestEqual(TEXT("one NDEATH on JSON"), JsonDeaths, 1);
 	}
 
 	Node->RemoveFromRoot();

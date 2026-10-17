@@ -4,7 +4,42 @@
 		"unreal-mcp":
 		{
 			"type": "http",
-			"url": "http://127.0.0.1:8000/mcp"
+			"url": "http://127.0.0.1:7777/mcp"
+		},
+		"fde-ignition":
+		{
+			"type": "http",
+			"url": "http://localhost:9104/mcp"
+		},
+		"fde-emqx":
+		{
+			"type": "http",
+			"url": "http://localhost:9109/mcp"
+		},
+		"fde-clickhouse":
+		{
+			"type": "http",
+			"url": "http://localhost:9105/mcp"
+		},
+		"fde-neo4j":
+		{
+			"type": "http",
+			"url": "http://localhost:9106/mcp"
+		},
+		"fde-obsidian":
+		{
+			"type": "http",
+			"url": "http://localhost:9108/mcp"
+		},
+		"fde-vaultwarden":
+		{
+			"type": "http",
+			"url": "http://localhost:9111/mcp"
+		},
+		"fde-tapestry":
+		{
+			"type": "http",
+			"url": "http://localhost:30790/mcp"
 		}
 	}
 }

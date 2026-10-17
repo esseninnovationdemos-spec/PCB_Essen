@@ -3,27 +3,31 @@
 Everything in this file is done on the device, in groov Manage. The strategy in
 `PAC_Control/` computes the tags; this is what publishes them.
 
-> **Blanks to fill.** The device is not on the network yet — a sweep of
-> `192.168.250.0/24` on 2026-08-27 found nothing answering on 502 (Modbus),
-> 2001 (OptoMMP) or 4840 (OPC UA). Two addresses are needed and neither can be
-> guessed:
+> **Addresses (found 2026-09-21).** The EPIC is on a direct cable to this
+> workstation, not on the WLAN — it has no Wi-Fi. Both ends are static; there is
+> no DHCP on a point-to-point link.
 >
-> | | Value | Where it goes |
+> | | Address | Where it goes |
 > |---|---|---|
-> | **`<<PLC_IP>>`** | _(blank)_ | The EPIC's own address. Used only to reach groov Manage in a browser and for diagnostics. |
-> | **`<<BROKER_IP>>`** | _(blank — currently `192.168.250.167`)_ | This workstation's LAN address, which is what the EPIC connects **out** to. |
+> | **PLC** — EPIC `ETH0`, host `opto-06-0a-74` | `192.168.100.52/24`, no gateway | Only to reach groov Manage (443) and Ignition Edge (8088 / 8043) in a browser. |
+> | **Broker** — this PC's wired `Ethernet` adapter | `192.168.100.10/24`, no gateway | What the EPIC connects **out** to, on `31883`. |
 >
-> `<<BROKER_IP>>` is the one the device actually needs. `<<PLC_IP>>` is only how
-> you reach the device to configure it — nothing in the running system dials the
-> PLC, because the connection is outbound from it to the broker.
+> `192.168.100.10` is the one the device actually needs. Nothing in the running
+> system dials the PLC; the connection is outbound from it to the broker.
+>
+> Verified from the PC: the EPIC answers ping and has 80, 443, 502 (Modbus),
+> 2001 (OptoMMP), 8088 / 8043 (Ignition Edge) and 22001 (PAC Control) open.
+> Inbound `31883` is allowed on the wired adapter by the firewall rule
+> `MQTT from PLC` — Windows files an unidentified wired network as Public, where
+> it would otherwise be blocked without any error on the device.
 
 ## 0. Confirm it is reachable
 
 ```bash
-ping <<PLC_IP>>
+ping 192.168.100.52
 ```
 
-Then open `https://<<PLC_IP>>` and sign in to groov Manage. The landing page
+Then open `https://192.168.100.52` and sign in to groov Manage. The landing page
 shows the firmware revision — note it, because native Sparkplug B needs a
 reasonably current one. If MQTT does not appear where step 2 expects it, that
 revision is why, and Node-RED on the device is the fallback bridge.
@@ -40,15 +44,14 @@ reaching it, and both are on this side, not the device's:
   New-NetFirewallRule -DisplayName "EMQX MQTT 31883" -Direction Inbound -Protocol TCP -LocalPort 31883 -Action Allow
   ```
 
-- **The address changes.** `192.168.250.167` is a DHCP lease on the WLAN
-  adapter. Reserve it, or put the EPIC on the wired network with a static
-  address on both ends. A demo that dies because a lease rolled over is a bad
-  afternoon.
+- **Do not point the EPIC at the WLAN address.** `192.168.250.167` is a DHCP
+  lease on a network the EPIC cannot reach. Use `192.168.100.10`, the static
+  address on the cable between them.
 
 Check from the device's own network before going further:
 
 ```bash
-nc -vz <<BROKER_IP>> 31883
+nc -vz 192.168.100.10 31883
 ```
 
 ## 2. Configure the MQTT client
@@ -57,13 +60,13 @@ In groov Manage: **MQTT → Add broker** (older firmware: **Configure → MQTT**
 
 | Field | Value | Why |
 |---|---|---|
-| Host | `<<BROKER_IP>>` | Outbound from the EPIC. |
+| Host | `192.168.100.10` | Outbound from the EPIC. |
 | Port | `31883` | |
 | TLS | off | The broker has no certificate the EPIC would trust. Fine on a lab LAN; see the note below. |
 | Username / password | as provisioned | See "Credentials". |
 | Client ID | `groov_epic_plc01` | Must be unique on the broker — a duplicate silently kicks the other session off in a loop. |
 | Payload format | **Sparkplug B** | Not "string". String payloads publish JSON on a different topic tree and the twin will not see them. |
-| Group ID | `InnoLab:Essen:SMT` | Must match the line exactly, colons included. Sparkplug reserves `/`, `+` and `#` here, which is why the ISA-95 levels are colon-joined. |
+| Group ID | `InnoLab_Essen_SMT` | Must match `PlcGroupId` in the twin's settings. Not the line's own `InnoLab:Essen:SMT`: groov Manage rejects the colons, although the Sparkplug spec allows them, so the PLC publishes in a group of its own and the twin subscribes to it there. |
 | Edge Node ID | `PLC01` | Must match `PlcEdgeNodeId` in the twin's settings. |
 
 Group and Edge Node ID are the two that must be character-exact. Everything
@@ -93,9 +96,10 @@ In the project, `Config/DefaultGame.ini`:
 [/Script/FactorySim.FactoryTwinSettings]
 bExternalControlEnabled=True
 PlcEdgeNodeId=PLC01
+PlcGroupId=InnoLab_Essen_SMT
 PlcTimeoutSeconds=10.0
 bFallBackToLocalOnPlcTimeout=True
-PlcHostAddress=<<PLC_IP>>
+PlcHostAddress=192.168.100.52
 ```
 
 `PlcHostAddress` is documentation and diagnostics only — nothing opens a

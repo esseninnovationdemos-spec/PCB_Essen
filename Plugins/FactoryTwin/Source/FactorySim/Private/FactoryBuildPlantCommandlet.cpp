@@ -32,6 +32,9 @@
 #include "IAssetTools.h"
 #include "Misc/Paths.h"
 #include "GameFramework/PlayerStart.h"
+#include "CollisionQueryParams.h"
+#include "CollisionShape.h"
+#include "PhysicsEngine/BodySetup.h"
 
 namespace PlantBuild
 {
@@ -376,7 +379,7 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 			        (LineStartY + 30.0) * FactoryGrid::MetresToCm, 400.0)));
 	}
 
-	int32 HallParts = 0;
+	int32 HallParts = 0, HallCollisionFixed = 0;
 	int32 HallSkipped = 0;
 	int32 NaniteEnabled = 0;
 	FBox HallBounds(ForceInit);
@@ -472,6 +475,36 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 				}
 			}
 
+			// Collide with the building, not with a box the size of it.
+			//
+			// The FBX import generates simple collision, and for a shell the
+			// generated hull is a solid volume enclosing the whole interior.
+			// Nothing about that is visible: the hall renders correctly, walls
+			// stop you, and the level looks right. What it actually does is
+			// fill the building with an invisible solid -- so a pawn spawned
+			// indoors starts inside it, the first movement update resolves the
+			// penetration by ejecting the pawn through the shell, and the same
+			// volume then refuses to let it back in. That is the "teleported
+			// out of the warehouse and cannot get back through the walls".
+			//
+			// Static scenery has no reason to want a cheap proxy: complex as
+			// simple gives collision that follows the triangles, so the walls
+			// are solid and the space inside them is not.
+			if (UBodySetup* Body = Mesh->GetBodySetup())
+			{
+				if (Body->CollisionTraceFlag != CTF_UseComplexAsSimple
+					|| Body->AggGeom.GetElementCount() > 0)
+				{
+					Body->AggGeom.EmptyElements();
+					Body->CollisionTraceFlag = CTF_UseComplexAsSimple;
+					Body->InvalidatePhysicsData();
+					Body->CreatePhysicsMeshes();
+					Mesh->MarkPackageDirty();
+					ToSave.AddUnique(Mesh->GetOutermost());
+					++HallCollisionFixed;
+				}
+			}
+
 			if (AStaticMeshActor* Piece = World->SpawnActor<AStaticMeshActor>(
 				FVector::ZeroVector, FRotator::ZeroRotator))
 			{
@@ -497,8 +530,8 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 		}
 		UE_LOG(LogFactorySim, Display,
 			TEXT("  hall: %d part(s) placed, %d skipped as standing in a line, "
-			     "%lld triangles, Nanite switched on for %d"),
-			HallParts, HallSkipped, TotalTriangles, NaniteEnabled);
+			     "%lld triangles, Nanite switched on for %d, collision rebuilt on %d"),
+			HallParts, HallSkipped, TotalTriangles, NaniteEnabled, HallCollisionFixed);
 	}
 
 	int32 TotalPlaced = 0;
@@ -960,13 +993,110 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 
 		if (HallBounds.IsValid)
 		{
-			// A couple of metres in off the corner so the near wall is behind
-			// the camera rather than through it.
-			constexpr double Inset = 200.0;
-			Where = FVector(
-				HallBounds.Min.X + Inset,
-				HallBounds.Min.Y + Inset,
-				HallBounds.Min.Z + 200.0);
+			// Bigger than any pawn this project spawns, so a spot that passes
+			// here is not merely a spot the capsule's centre fits in.
+			constexpr float PawnRadius = 55.0f;
+			constexpr float PawnHalfHeight = 100.0f;
+			constexpr double Clearance = 4.0;
+
+			// Does a pawn actually stand here, with its feet on something?
+			//
+			// HallBounds is the union of the structure, walls included, so two
+			// metres in from its corner is two metres in from the *outside* of
+			// the building -- which on this hall is inside the corner where two
+			// walls meet. Spawning a capsule inside a wall does not fail
+			// visibly: the level opens looking down the lines, and the first
+			// movement update resolves the penetration by ejecting the pawn
+			// through the nearest face, which puts it outside the shed with the
+			// walls now correctly refusing to let it back in.
+			//
+			// So stop deriving the spot and start testing it.
+			const double FloorLevel = HallBounds.Min.Z;
+			const auto StandsAt = [World, FloorLevel](const FVector& Foot, FVector& OutWhere) -> bool
+			{
+				FCollisionQueryParams Params(SCENE_QUERY_STAT(ViewingPosition), false);
+
+				// Find the floor under the candidate.
+				//
+				// From just above head height, not from the rafters: a trace
+				// that starts 15 m up returns the first thing it meets on the
+				// way down, which is the roof, or the top of whatever machine
+				// stands here. That reads as solid ground and puts the start
+				// point on a machine roof six metres in the air.
+				FHitResult Floor;
+				const FVector From = Foot + FVector(0.0, 0.0, 250.0);
+				const FVector To = Foot - FVector(0.0, 0.0, 200.0);
+				if (!World->LineTraceSingleByChannel(Floor, From, To, ECC_Visibility, Params))
+				{
+					return false;
+				}
+
+				// And it has to be the floor, not the lid of something. Anything
+				// standing proud of the slab here means this spot is occupied,
+				// so move along rather than stand on top of it.
+				if (Floor.ImpactPoint.Z > FloorLevel + 50.0)
+				{
+					return false;
+				}
+
+				const FVector Candidate = Floor.ImpactPoint
+					+ FVector(0.0, 0.0, PawnHalfHeight + Clearance);
+				if (World->OverlapBlockingTestByChannel(
+					Candidate, FQuat::Identity, ECC_Pawn,
+					FCollisionShape::MakeCapsule(PawnRadius, PawnHalfHeight), Params))
+				{
+					return false;
+				}
+
+				OutWhere = Candidate;
+				return true;
+			};
+
+			const FVector Centre2D(
+				HallBounds.GetCenter().X, HallBounds.GetCenter().Y, HallBounds.Min.Z);
+			const FVector Corner(
+				HallBounds.Min.X + 200.0, HallBounds.Min.Y + 200.0, HallBounds.Min.Z);
+
+			// Walk in from the corner towards the middle and take the first
+			// place a pawn fits. That keeps the intended vantage -- a corner,
+			// looking back down the lines -- while guaranteeing the spot is
+			// real, and it re-derives itself if the hall model ever changes.
+			bool bFound = false;
+			for (int32 Step = 0; Step <= 50 && !bFound; ++Step)
+			{
+				const FVector Foot = FMath::Lerp(Corner, Centre2D, Step / 50.0);
+				bFound = StandsAt(Foot, Where);
+
+				if (!bFound && Step % 10 == 0)
+				{
+					FCollisionQueryParams Probe(SCENE_QUERY_STAT(ViewingProbe), false);
+					FHitResult Hit;
+					const bool bHit = World->LineTraceSingleByChannel(
+						Hit, Foot + FVector(0.0, 0.0, 250.0),
+						Foot - FVector(0.0, 0.0, 200.0), ECC_Visibility, Probe);
+					UE_LOG(LogFactorySim, Display,
+						TEXT("  probe at (%.1f, %.1f) m: %s"),
+						Foot.X / FactoryGrid::MetresToCm, Foot.Y / FactoryGrid::MetresToCm,
+						bHit ? *FString::Printf(TEXT("hit %s at z=%.2f m"),
+									*GetNameSafe(Hit.GetActor()),
+									Hit.ImpactPoint.Z / FactoryGrid::MetresToCm)
+							 : TEXT("nothing under it at all"));
+				}
+			}
+
+			if (!bFound)
+			{
+				// Nothing along the diagonal, which means the queries are
+				// telling us nothing useful. The middle of the floor is where
+				// the lines are and is open by construction, so stand there and
+				// say so rather than silently using the corner that failed.
+				Where = FVector(Centre2D.X, Centre2D.Y,
+					HallBounds.Min.Z + PawnHalfHeight + Clearance);
+				UE_LOG(LogFactorySim, Warning,
+					TEXT("  no clear standing spot found between the hall corner and its "
+						 "centre; falling back to the centre at (%.1f, %.1f) m"),
+					Where.X / FactoryGrid::MetresToCm, Where.Y / FactoryGrid::MetresToCm);
+			}
 
 			// Aim at the middle of the floor, which is where the lines are.
 			const FVector Centre(
@@ -979,9 +1109,16 @@ int32 UFactoryBuildPlantCommandlet::Main(const FString& Params)
 		{
 			Start->SetActorLabel(TEXT("ViewingPosition"));
 			UE_LOG(LogFactorySim, Display,
-				TEXT("  viewing position at (%.1f, %.1f) m, facing %.0f deg"),
+				TEXT("  hall spans (%.1f, %.1f) to (%.1f, %.1f) m, floor at %.1f m"),
+				HallBounds.Min.X / FactoryGrid::MetresToCm,
+				HallBounds.Min.Y / FactoryGrid::MetresToCm,
+				HallBounds.Max.X / FactoryGrid::MetresToCm,
+				HallBounds.Max.Y / FactoryGrid::MetresToCm,
+				HallBounds.Min.Z / FactoryGrid::MetresToCm);
+			UE_LOG(LogFactorySim, Display,
+				TEXT("  viewing position at (%.1f, %.1f, %.1f) m, facing %.0f deg"),
 				Where.X / FactoryGrid::MetresToCm, Where.Y / FactoryGrid::MetresToCm,
-				Facing.Yaw);
+				Where.Z / FactoryGrid::MetresToCm, Facing.Yaw);
 		}
 	}
 

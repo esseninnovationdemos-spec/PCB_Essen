@@ -84,6 +84,9 @@ def main():
     parser.add_argument("--group", default="InnoLab:Essen:SMT")
     parser.add_argument("--line", default="Line1", help="edge node id to watch")
     parser.add_argument("--plc", default="PLC01", help="controller edge node id")
+    parser.add_argument("--plc-group", default="InnoLab_Essen_SMT",
+                        help="group the controller publishes under (PlcGroupId); groov "
+                             "Manage rejects the colons in the line group, so it differs")
     parser.add_argument("--interval", type=float, default=2.0, help="seconds between redraws")
     parser.add_argument("--once", action="store_true", help="print one table and exit")
     parser.add_argument("--settle", type=float, default=6.0,
@@ -93,6 +96,8 @@ def main():
     client = MqttClient(args.host, args.port, "watch_line_%d" % (time.time() % 100000))
     client.connect()
     client.subscribe("spBv1.0/%s/#" % args.group, qos=0)
+    if args.plc_group != args.group:
+        client.subscribe("spBv1.0/%s/+/%s/#" % (args.plc_group, args.plc), qos=0)
 
     stations = {}
     plc_last_seen = 0.0
@@ -103,11 +108,11 @@ def main():
         while True:
             for topic, payload in client.poll():
                 group, verb, node, device = split_topic(topic)
-                if group != args.group:
+                if group == args.plc_group and node == args.plc:
+                    plc_last_seen = time.time()
                     continue
 
-                if node == args.plc:
-                    plc_last_seen = time.time()
+                if group != args.group:
                     continue
 
                 if node != args.line or device is None:

@@ -15,5 +15,14 @@ public class SparkplugB : ModuleRules
 				"MqttTransport",
 			}
 			);
+
+		// Only the JSON payload codec reads and writes JSON; nothing in the public
+		// headers exposes it.
+		PrivateDependencyModuleNames.AddRange(
+			new string[]
+			{
+				"Json",
+			}
+			);
 	}
 }

@@ -285,7 +285,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		ArmZ.MotionPeriodSeconds = 1.0;
 
 		PlacerType->Metrics = { ArmX, ArmY, ArmZ,
-			MakeCycleTimeMetric(TEXT("cycle_time"), { 0.4, 2.5 }, { 0.05, 6.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time"), { 3.0, 4.5 }, { 1.0, 10.0 }) };
 		Created.Add(PlacerType);
 	}
 
@@ -301,8 +301,11 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		ThermalType->StateModel = EFactoryStateModel::Automated;
 		ThermalType->DefaultTickIntervalSeconds = 1.0f;
 		ThermalType->ThermalRampConstant = 3.0f;
-		ThermalType->WarmupSeconds = 20.0f;
-		ThermalType->CooldownSeconds = 20.0f;
+		// Scaled with the cycle below. At 20 s against a 4 s cycle the oven spent
+		// most of its life warming rather than working, which reads as a stalled
+		// line even though nothing is wrong.
+		ThermalType->WarmupSeconds = 1.5f;
+		ThermalType->CooldownSeconds = 1.5f;
 
 		// SAC305 reflow peak band.
 		FFactoryMetricDefinition OvenTemp = MakeFloatMetric(TEXT("oven_temp_c"), TEXT("C"),
@@ -315,8 +318,15 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 			{ 40.0, 50.0 }, { 25.0, 70.0 }, 25.0, 65.0);
 		CoolTemp.bThermal = true;
 
+		// Three minutes is the real figure for a reflow profile, and it made the
+		// oven the hard bottleneck of the whole line: boards arrive every 5 s
+		// (AutoProductionIntervalSeconds) and the PLC's takt is 6 s, so ~36 arrive
+		// per one the oven cleared. The five stations ahead of it sat Blocked
+		// 91-98% of the time and everything behind it starved. Compressed to a
+		// few seconds so the line actually flows -- the same compression the rest
+		// of the demo already applies to time.
 		ThermalType->Metrics = { OvenTemp, CoolTemp,
-			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 175.0, 185.0 }, { 160.0, 220.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 3.5, 5.0 }, { 2.0, 12.0 }) };
 		Created.Add(ThermalType);
 	}
 
@@ -331,8 +341,8 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 			"where the source is powered but not yet at working output.");
 		LaserType->StateModel = EFactoryStateModel::Automated;
 		LaserType->DefaultTickIntervalSeconds = 0.5f;
-		LaserType->WarmupSeconds = 8.0f;
-		LaserType->CooldownSeconds = 5.0f;
+		LaserType->WarmupSeconds = 1.0f;
+		LaserType->CooldownSeconds = 1.0f;
 
 		FFactoryMetricDefinition LaserTemp = MakeFloatMetric(TEXT("laser_temp_c"), TEXT("C"),
 			{ 38.0, 52.0 }, { 20.0, 110.0 }, 28.0, 101.0);
@@ -351,7 +361,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		Fume.WarmupValue = 1500.0;
 
 		LaserType->Metrics = { LaserTemp, LaserPower, Fume,
-			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 12.0, 17.0 }, { 10.0, 25.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 3.0, 4.5 }, { 2.0, 12.0 }) };
 		Created.Add(LaserType);
 	}
 
@@ -373,7 +383,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		VisionType->bIsInspectionStation = true;
 		VisionType->DefaultFailRate = 0.02f;
 		VisionType->Metrics = {
-			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 2.0, 3.0 }, { 1.5, 5.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 3.0, 4.5 }, { 1.5, 10.0 }) };
 		Created.Add(VisionType);
 	}
 
@@ -390,7 +400,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		ManualType->StateModel = EFactoryStateModel::Manual;
 		ManualType->DefaultTickIntervalSeconds = 1.0f;
 		ManualType->Metrics = {
-			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 25.0, 90.0 }, { 10.0, 300.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time_sec"), { 3.5, 5.0 }, { 2.0, 20.0 }) };
 		Created.Add(ManualType);
 	}
 
@@ -407,7 +417,7 @@ int32 UFactorySeedCommandlet::Main(const FString& Params)
 		// Zero means event-only; the component skips scheduled publishing.
 		LineType->DefaultTickIntervalSeconds = 0.0f;
 		LineType->Metrics = {
-			MakeCycleTimeMetric(TEXT("cycle_time"), { 125.0, 195.0 }, { 100.0, 240.0 }) };
+			MakeCycleTimeMetric(TEXT("cycle_time"), { 60.0, 100.0 }, { 40.0, 160.0 }) };
 		Created.Add(LineType);
 	}
 

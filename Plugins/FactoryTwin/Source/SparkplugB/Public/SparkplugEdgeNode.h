@@ -17,9 +17,28 @@ struct SPARKPLUGB_API FSparkplugEdgeNodeConfig
 {
 	GENERATED_BODY()
 
-	/** Topic namespace. Always "spBv1.0" for Sparkplug B. */
+	/** Topic namespace for protobuf payloads. Always "spBv1.0" for Sparkplug B. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Sparkplug")
 	FString Namespace = TEXT("spBv1.0");
+
+	/** Which encodings go on the wire. See ESparkplugPayloadEncoding. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Sparkplug|Encoding")
+	ESparkplugPayloadEncoding Encoding = ESparkplugPayloadEncoding::Protobuf;
+
+	/**
+	 * Topic namespace for JSON payloads.
+	 *
+	 * Not spBv1.0 by default because a Sparkplug consumer subscribed there
+	 * expects protobuf and fails on JSON. One segment, so every level after it
+	 * keeps its position: a query that reads the group from level 2 works on
+	 * either stream.
+	 *
+	 * Setting it to spBv1.0 is allowed with Encoding = Json, for a broker where
+	 * nothing reads protobuf. With Both it is refused, because the two streams
+	 * would land on the same topics.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Sparkplug|Encoding")
+	FString JsonNamespace = TEXT("spBv1.0-json");
 
 	/**
 	 * Wire-visible: changing this breaks every downstream consumer.
@@ -157,12 +176,17 @@ public:
 	 *
 	 * Safe to call before Connect: the subscription is re-issued every time the
 	 * session comes up, so it survives a broker reconnect.
+	 *
+	 * @param ForeignGroupId Group the peer publishes under; empty means this
+	 *        node's own group. A peer can have to sit in a group of its own: groov
+	 *        Manage rejects the colons this plant's ISA-95 group id is built from,
+	 *        although the Sparkplug spec allows them.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Sparkplug")
-	void ObserveEdgeNode(const FString& ForeignEdgeNodeId);
+	void ObserveEdgeNode(const FString& ForeignEdgeNodeId, const FString& ForeignGroupId = TEXT(""));
 
 	UFUNCTION(BlueprintCallable, Category = "Sparkplug")
-	void StopObservingEdgeNode(const FString& ForeignEdgeNodeId);
+	void StopObservingEdgeNode(const FString& ForeignEdgeNodeId, const FString& ForeignGroupId = TEXT(""));
 
 	UFUNCTION(BlueprintPure, Category = "Sparkplug")
 	bool IsOnline() const { return bOnline; }
@@ -175,7 +199,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Sparkplug")
 	int64 GetBirthDeathSequence() const { return BirthDeathSequence.load(std::memory_order_relaxed); }
 
-	/** Builds a topic for this node, e.g. spBv1.0/InnoLab:Essen:SMT/DDATA/Line1/REFLOW_OVEN. */
+	/**
+	 * Builds a topic for this node on its primary stream, e.g.
+	 * spBv1.0/InnoLab:Essen:SMT/DDATA/Line1/REFLOW_OVEN. The primary stream is
+	 * protobuf unless Encoding is Json alone.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Sparkplug")
 	FString BuildTopic(ESparkplugMessageType MessageType, const FString& DeviceId) const;
 
@@ -196,12 +224,32 @@ private:
 	/** Consumes and returns the next sequence number, wrapping at 256. */
 	uint8 NextSequence();
 
-	TArray<uint8> BuildDeathPayload() const;
+	/** One namespace this node publishes on, and the encoding it carries. */
+	struct FStream
+	{
+		FString Namespace;
+		ESparkplugPayloadEncoding Encoding;
+	};
+
+	/** Every stream this node publishes, primary first. One entry, or two with Both. */
+	TArray<FStream, TInlineAllocator<2>> GetStreams() const;
+
+	/**
+	 * The stream that carries the MQTT will. A connection has exactly one will,
+	 * so with Both the JSON stream gets an NDEATH only on a clean disconnect;
+	 * an abrupt one is announced on the protobuf stream alone.
+	 */
+	FStream GetPrimaryStream() const;
+
+	FString BuildTopicIn(
+		const FString& InNamespace, ESparkplugMessageType MessageType, const FString& DeviceId) const;
+
+	TArray<uint8> BuildDeathPayload(ESparkplugPayloadEncoding Encoding) const;
 
 	/** Bumps bdSeq and builds the will. Called by the transport before each CONNECT. */
 	TArray<uint8> BuildSessionDeathPayload();
 	/** Issues the wildcard subscriptions that tap one peer edge node. */
-	void SubscribeToObserved(const FString& ForeignEdgeNodeId);
+	void SubscribeToObserved(const FString& ForeignGroupId, const FString& ForeignEdgeNodeId);
 
 	void PublishNodeBirth();
 	void PublishDeviceBirth(const FString& DeviceId);
@@ -222,7 +270,7 @@ private:
 	TArray<FString> DeviceOrder;
 
 	/** Peer edge nodes this session taps, re-subscribed on every reconnect. */
-	TSet<FString> ObservedEdgeNodes;
+	TSet<TPair<FString, FString>> ObservedEdgeNodes;
 
 	int32 Sequence = 0;
 	/** Atomic: bumped on the transport worker, read when NBIRTH is built. */

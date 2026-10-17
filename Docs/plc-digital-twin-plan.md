@@ -1,12 +1,17 @@
 # PLC digital twin — plan and current state
 
+> **Superseded for control (2026-10-16):** commands are moving to OPC UA, with
+> MQTT kept for the UNS only — see
+> [`opcua-control-architecture.md`](opcua-control-architecture.md). The hardware
+> facts and commissioning notes below still hold.
+
 Making a physical Opto 22 groov EPIC decide when the simulated stations cycle,
 over the Sparkplug B bus the demo already runs on.
 
-**This is unfinished, and the reason is external:** the device is not on the
-network. Everything that can be built and proven without it has been, against a
-software stand-in. What remains is commissioning against real hardware, plus two
-pieces of engineering that only make sense once it is there.
+**This is unfinished.** Everything that could be built and proven without the
+device has been, against a software stand-in. As of 2026-09-21 the EPIC is on
+the network and reachable, so what remains is commissioning against real
+hardware, plus two pieces of engineering that only make sense once it is there.
 
 The architecture, the wire contract and the tag-name grammar are settled and
 documented in [`Tools/plc/README.md`](../Tools/plc/README.md). This document is
@@ -37,13 +42,16 @@ path end to end *and* proves the resolution is line-qualified, which matters
 because this plant runs three lines with identical station ids: `LOADER` alone
 matches three machines.
 
-### Blocked on hardware
+### Hardware status
 
-- The EPIC is not reachable. As of 2026-08-27 the address probed for it
-  answered on 443 as a Philips Hue bridge — so the address is wrong, not the
-  device dead. Both blanks are marked `<<PLC_IP>>` and `<<BROKER_IP>>` in
-  [`groov_manage_setup.md`](../Tools/plc/groov_manage_setup.md).
-- No tags have been created in groov Manage.
+- **Reachable.** The EPIC (`opto-06-0a-74`) is at `192.168.100.52` on a direct
+  cable; this PC is `192.168.100.10` on the same link. Ping, groov Manage (443),
+  Ignition Edge (8088 / 8043), OptoMMP (2001) and PAC Control (22001) all answer.
+  Details in [`groov_manage_setup.md`](../Tools/plc/groov_manage_setup.md).
+- No tags have been created in groov Manage yet.
+- The EPIC also runs **Ignition Edge**. Publish Sparkplug from *either* groov
+  Manage's MQTT client *or* Ignition Edge's MQTT Transmission, not both — two
+  publishers make the PLC appear twice under the same tags.
 - Real I/O is unwired: `diEStopOk`, `diRunSelector`, `diResetButton` and three
   stack-light outputs are referenced by the strategy and connected to nothing.
 
@@ -86,18 +94,17 @@ back looks like a bug in the phase you are in.
 
 ### Phase 1 — Reach the device
 
-1. Find the EPIC's address (its display shows it; otherwise the DHCP lease
-   table). Fill `<<PLC_IP>>` in `groov_manage_setup.md`.
-2. `ping <<PLC_IP>>`, then open `https://<<PLC_IP>>` and sign in to groov Manage.
-3. Fill `<<BROKER_IP>>` with this workstation's LAN address — that is the one
-   the device actually needs, because the EPIC connects **outward** to the
-   broker.
+1. ~~Find the EPIC's address.~~ Done: `192.168.100.52`, with this PC at
+   `192.168.100.10` on the same cable, and inbound `31883` allowed.
+2. Open `https://192.168.100.52` and sign in to groov Manage.
+3. Point its MQTT client at `192.168.100.10:31883` — the EPIC connects
+   **outward** to the broker.
 
 > **Credentials:** create the API key or MQTT user yourself in groov Manage and
 > put it in the compose `.env` or Vaultwarden. Do not paste it into a file that
 > is committed, and do not paste it into this repository.
 
-**Passes when:** groov Manage loads and `nc -vz <<BROKER_IP>> 31883` succeeds
+**Passes when:** groov Manage loads and `nc -vz 192.168.100.10 31883` succeeds
 from the device's network.
 
 ### Phase 2 — Publish one tag

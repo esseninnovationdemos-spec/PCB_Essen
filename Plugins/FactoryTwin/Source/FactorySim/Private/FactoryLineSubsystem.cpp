@@ -229,6 +229,7 @@ void UFactoryLineSubsystem::BeginEdgeNodeSession()
 		PlcEdgeNodeId = ControlSettings->bExternalControlEnabled
 			? ControlSettings->PlcEdgeNodeId
 			: FString();
+		PlcGroupId = ControlSettings->PlcGroupId;
 	}
 
 	// Group the registered machines by the work centre they belong to. Devices
@@ -278,7 +279,7 @@ void UFactoryLineSubsystem::BeginEdgeNodeSession()
 		// PLC message can slip through between connecting and subscribing.
 		if (!PlcEdgeNodeId.IsEmpty() && PlcEdgeNodeId != Config.EdgeNodeId)
 		{
-			Node->ObserveEdgeNode(PlcEdgeNodeId);
+			Node->ObserveEdgeNode(PlcEdgeNodeId, PlcGroupId);
 		}
 
 		EdgeNodes.Add(Pair.Key, Node);
@@ -742,6 +743,28 @@ void UFactoryLineSubsystem::HandleForeignNodeData(
 	if (const UWorld* World = GetWorld())
 	{
 		LastPlcMessageSeconds = World->GetTimeSeconds();
+	}
+
+	// A PLC that comes back takes control back.
+	//
+	// The watchdog hands sequencing to the line when the PLC goes quiet and
+	// clears its own timer, and nothing re-armed it -- so the twin stayed local
+	// for the rest of the session however loudly the PLC resumed. That is not a
+	// hypothetical: the first time a real strategy started publishing, the twin
+	// had already timed out waiting for it and ignored every message.
+	if (ControlMode != EFactoryControlMode::External)
+	{
+		const UFactoryTwinSettings* ControlSettings = UFactoryTwinSettings::Get();
+		UWorld* World = GetWorld();
+		if (ControlSettings != nullptr && ControlSettings->bExternalControlEnabled
+			&& World != nullptr)
+		{
+			UE_LOG(LogFactorySim, Log,
+				TEXT("PLC '%s' is publishing again; following it"), *EdgeNodeId);
+			SetControlMode(EFactoryControlMode::External);
+			World->GetTimerManager().SetTimer(
+				PlcWatchdogTimer, this, &UFactoryLineSubsystem::CheckPlcWatchdog, 1.0f, true);
+		}
 	}
 
 	const bool bSeedOnly = MessageType == ESparkplugMessageType::NBIRTH

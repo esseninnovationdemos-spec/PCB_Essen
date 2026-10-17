@@ -51,6 +51,29 @@ enum class ESparkplugMessageType : uint8
 };
 
 /**
+ * How payloads go on the wire.
+ *
+ * Protobuf is the only encoding the Sparkplug B specification defines, and the
+ * only one Ignition's MQTT Engine and the ClickHouse bridge read. JSON is for a
+ * broker or database that cannot decode protobuf and would otherwise need a
+ * decoder sidecar -- an EMQX rule writing straight to ClickHouse, for instance.
+ */
+UENUM(BlueprintType)
+enum class ESparkplugPayloadEncoding : uint8
+{
+	/** Tahu protobuf on Namespace. Spec-compliant, and the default. */
+	Protobuf,
+	/** Tahu-shaped JSON on JsonNamespace, and nothing else. */
+	Json,
+	/**
+	 * Every message twice with the same seq: protobuf on Namespace, JSON on
+	 * JsonNamespace. For a mixed estate -- Ignition keeps reading protobuf while
+	 * a JSON-only consumer reads its own namespace.
+	 */
+	Both
+};
+
+/**
  * One Sparkplug metric.
  *
  * Value storage is split by width rather than using a variant so the struct stays
